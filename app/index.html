@@ -40,6 +40,8 @@
   @keyframes pulse { to { opacity: .3; } }
   .status .time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+  /* Reconectando: los datos son de antes del corte → apagados para que no parezcan actuales */
+  body.stale .eta, body.stale .hero, body.stale .card:not(.picker) { opacity: .35; filter: grayscale(1); transition: opacity .3s; }
   .picker { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
   .picker h2 { margin-bottom: 8px; }
   .dev { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--bg);
@@ -291,6 +293,35 @@
     $("btn").className = isBusy(s) ? "secondary" : "";
     // En la web la lista la pone Chrome; la nuestra es solo para la APK.
     $("picker").hidden = !(hasBridge && (s === "scanning" || s === "select"));
+    // Sin conexión no se muestra ningún dato: nada de lecturas viejas que parezcan actuales.
+    if (s === "disconnected" || s === "error") resetDashboard();
+    document.body.classList.toggle("stale", s === "reconnecting" || (s === "connecting" && !!last.basic));
+  }
+
+  function resetDashboard() {
+    last = { basic: null, cells: null };
+    samples = [];
+    serials = {};
+    $("soc").textContent = "--";
+    $("arc").setAttribute("stroke-dashoffset", "377");
+    ["power", "current", "voltage", "remaining"].forEach(function (id, i) {
+      setVal(id, "--", ["W", "A", "V", "Ah"][i]);
+    });
+    $("flow").innerHTML = "&nbsp;";
+    $("flow").style.color = "";
+    $("energy").innerHTML = "&nbsp;";
+    $("delta").innerHTML = "";
+    $("cells").innerHTML = "<div class='empty' style='grid-column:1/-1'>Sin datos: no estás conectado</div>";
+    ["soh", "cycles", "full", "tcells", "tmos", "tamb", "device", "serial", "statushex"].forEach(function (id) {
+      $(id).textContent = "--";
+    });
+    $("time").textContent = "";
+    $("eta").dataset.level = "";
+    $("etaLabel").textContent = "Autonomía";
+    $("etaBig").textContent = "--";
+    $("etaLine").textContent = "Sin conexión con el BMS. Pulsa Conectar para ver los datos.";
+    $("etaNote").textContent = "";
+    $("etaVerdict").hidden = true;
   }
 
   // ---------------------------------------------------------------- lista de dispositivos (APK)
@@ -315,6 +346,7 @@
 
   function renderBasic(b) {
     last.basic = b;
+    document.body.classList.remove("stale");
     var socPct = Math.max(0, Math.min(100, b.soc));
     $("soc").textContent = socPct;
     $("arc").setAttribute("stroke-dashoffset", String(377 * (1 - socPct / 100)));
