@@ -95,7 +95,9 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if (!hasPermissions()) {
+                    // Se pide lo que falte: Bluetooth (imprescindible) y, una sola vez, notificaciones.
+                    if (!hasPermissions() || shouldAskNotifications()) {
+                        getSharedPreferences("mustmanager", MODE_PRIVATE).edit().putBoolean("askedNotifications", true).apply();
                         requestPermissions(requestedPermissions(), REQ_PERMS);
                     } else if (service != null) {
                         service.discover();
@@ -158,6 +160,13 @@ public class MainActivity extends Activity implements BmsClient.Listener {
         System.arraycopy(base, 0, all, 0, base.length);
         all[base.length] = Manifest.permission.POST_NOTIFICATIONS;
         return all;
+    }
+
+    /** Notificaciones (Android 13+): se piden una vez; si el usuario dice que no, no insistimos. */
+    private boolean shouldAskNotifications() {
+        return Build.VERSION.SDK_INT >= 33
+            && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            && !getSharedPreferences("mustmanager", MODE_PRIVATE).getBoolean("askedNotifications", false);
     }
 
     private boolean hasPermissions() {

@@ -166,7 +166,7 @@
 </div>
 
 <div class="card" id="chartCard" style="margin-bottom:14px">
-  <h2>Últimas 24 horas</h2>
+  <h2 id="chartTitle">Últimas 24 horas</h2>
   <div class="legend"><span><i style="background:#16a34a"></i>SOC (%)</span>
     <span><i style="background:#0284c7"></i>Cargando (por encima de 0)</span>
     <span><i style="background:#d97706"></i>Descargando (por debajo de 0)</span></div>
@@ -483,7 +483,11 @@
       chart = echarts.init($("chart"));
       window.addEventListener("resize", function () { chart.resize(); });
     }
-    var from = now - 24 * HOUR, soc = [], pw = [], prev = null;
+    // Con pocos datos, 24 h los dejaría en un hilo en el borde: se muestran las últimas 3 h hasta tener más.
+    var recent = rows.filter(function (r) { return r[0] >= now - 24 * HOUR; });
+    var hours = recent.length && now - recent[0][0] < 3 * HOUR ? 3 : 24;
+    $("chartTitle").textContent = "Últimas " + hours + " horas";
+    var from = now - hours * HOUR, soc = [], pw = [], prev = null;
     rows.forEach(function (r) {
       if (r[0] < from) return;
       // Hueco sin datos (app desconectada): la línea se corta en vez de inventar un tramo recto.
