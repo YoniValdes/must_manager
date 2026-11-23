@@ -66,8 +66,11 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 ## Plan
 1. **Descubrir el servicio y las características BLE del BMS** con nRF Connect (escanear, conectar, capturar la lista de servicios y características). ✅ Hecho
 2. Capturar el tráfico entre BMS tools y el BMS (Opciones de desarrollador → "Registro de búsqueda de HCI Bluetooth" / HCI snoop log) y descifrar las tramas. ✅ Hecho (queda el fleco de los bits de estado, ver `docs/protocolo_bms.md`)
-3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas. ✅ Versión web probada con el BMS real (23-nov-2026); falta probar la APK. ← EN CURSO: pulido
-4. Registro periódico local (base de datos en el dispositivo) y gráficas: consumo por horas, descarga nocturna, carga solar y de red, horas restantes estimadas.
+3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas. ✅ Hecho (23-nov-2026): versión web y APK v0.3 funcionando con el BMS real.
+   - Ya hecho: tarjeta de autonomía (hasta el 15 %, media de 5 min, hora de llegada, amanecer 07:00 y W máximos para llegar), lista para elegir el BMS (recuerda el último y solo reconecta a ese), dashboard a "--" sin conexión y en gris mientras reconecta.
+   - Pendiente menor: la versión de firmware (trama `00 01`, solo llega al activar las notificaciones) no aparece en "Dispositivo"; el nº de serie sí. A Jhonny no le corre prisa.
+   - Orden acordado: primero funciones (registro → consumo nocturno → gráficas → exportar CSV/XLSX para analítica) y después la parte visual.
+4. Registro periódico local (base de datos en el dispositivo) y gráficas: consumo por horas, descarga nocturna, carga solar y de red, horas restantes estimadas. ← SIGUIENTE (necesita grabar con la pantalla apagada: servicio en primer plano en la APK)
 5. Exportar a CSV y XLSX para analizar los datos y hacer gráficas fuera de la app (Excel, Google Sheets, etc.).
 6. Pulido para compartir: icono, nombre, instrucciones de instalación y manejo de errores.
 7. **Fase futura: leer el inversor** (cuando la app del BMS esté completa). El BMS solo ve la corriente neta de la batería (sol + red − consumo), así que no puede separar el aporte de los paneles ni el consumo real de la casa con sol. Solo el inversor conoce los W de FV, de red y de carga. Hay que averiguar su puerto de comunicación (independiente del BMS) y su protocolo, y capturar y descifrar el tráfico como con el BMS. Mientras tanto, la tarjeta de autonomía avisa de día de que la estimación incluye el sol y que es fiable de noche.
