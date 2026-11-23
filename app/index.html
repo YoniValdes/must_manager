@@ -21,7 +21,7 @@
     --radius: 14px;
   }
   /* ---- Neón (Personalizar): brillo en números y bordes con el color de acento ---- */
-  body.neon .tile b, body.neon .cell b, body.neon .ring .val b, body.neon .night .tile b {
+  body.neon .tile:not(.kpi) b, body.neon .cell b, body.neon .ring .val b {
     text-shadow: 0 0 8px color-mix(in srgb, var(--acc) 55%, transparent); }
   body.neon .card:not(.settings), body.neon .status { box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 22%, transparent),
     0 0 18px -6px color-mix(in srgb, var(--acc) 45%, transparent); }
@@ -119,7 +119,9 @@
   #bell.on { color: var(--warn); }
   .night { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
   @media (max-width: 640px) { .night { grid-template-columns: repeat(2, 1fr); } }
-  .night .tile b { font-size: 22px; }
+  .night .gcell { text-align: center; padding: 10px 8px 10px; }
+  .night .gauge { width: 100%; height: 118px; }
+  .night .gcell .sub { min-height: 32px; line-height: 1.35; }
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
@@ -150,14 +152,18 @@
   .set .times { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
   .set .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .set .saved { color: var(--acc); font-size: 13px; }
-  .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
+  /* Tarjeta del SOC cuadrada (su lado ≈ el alto de los cuatro KPIs) */
+  .hero { display: grid; grid-template-columns: 252px 1fr; gap: 14px; margin-bottom: 14px; }
+  .hero .soc { min-height: 252px; }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
   .soc { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring { position: relative; width: 140px; height: 140px; }
+  .ring { position: relative; width: 196px; height: 196px; }
+  .ring svg { width: 100%; height: 100%; }
   .ring svg { transform: rotate(-90deg); }
   .ring .val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring .val b { font-size: 34px; font-variant-numeric: tabular-nums; }
+  .ring .val b { font-size: 50px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ring .val span { font-size: 14px; }
   .ring .val span { color: var(--muted); font-size: 12px; }
   .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .tile { background: var(--tile); border-radius: 10px; padding: 10px 12px; }
@@ -177,9 +183,9 @@
   .tile.kpi[data-st="charge"] { --st: #38bdf8; }
   .tile.kpi[data-st] b, .tile.kpi[data-st] .sub { color: var(--st); }
   .tile.kpi[data-st] b small { color: inherit; opacity: .75; }
-  body.neon .tile.kpi[data-st] b { color: #fff; text-shadow: 0 0 2px #fff, 0 0 8px var(--st), 0 0 18px var(--st), 0 0 32px var(--st); }
-  body.neon .tile.kpi[data-st] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st) 35%, transparent),
-    0 0 16px -6px var(--st); }
+  /* Sin brillo en los números (demasiado llamativo). En rojo, la tarjeta entera se rellena para que salte a la vista. */
+  .tile.kpi[data-st="bad"] { background: #b91c1c; }
+  .tile.kpi[data-st="bad"] b, .tile.kpi[data-st="bad"] .sub, .tile.kpi[data-st="bad"] label { color: #fff; }
   body.hc .tile.kpi[data-st] { border: 2px solid var(--st); }
 
   h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
@@ -344,11 +350,12 @@
 
 <div class="card" id="nightCard" style="margin-bottom:14px">
   <h2><span id="nightTitle">Esta noche</span> <span class="badge" id="nightRange"></span></h2>
+  <!-- Medidores semicirculares: cada uno con una escala que tiene sentido (ver renderNight) -->
   <div class="night">
-    <div class="tile"><label>Energía gastada</label><b id="nKwh">--<small>kWh</small></b><div class="sub" id="nSoc">&nbsp;</div></div>
-    <div class="tile"><label>Consumo medio</label><b id="nAvg">--<small>W</small></b><div class="sub" id="nCover">&nbsp;</div></div>
-    <div class="tile"><label>Pico de consumo</label><b id="nPeak">--<small>W</small></b><div class="sub" id="nPeakAt">&nbsp;</div></div>
-    <div class="tile"><label>Hoy desde las 00:00</label><b id="tIn">--<small>kWh</small></b><div class="sub" id="tOut">&nbsp;</div></div>
+    <div class="tile gcell"><label>Energía gastada</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
+    <div class="tile gcell"><label>Consumo medio</label><div class="gauge" id="gAvg"></div><div class="sub" id="nCover">&nbsp;</div></div>
+    <div class="tile gcell"><label>Pico de consumo</label><div class="gauge" id="gPeak"></div><div class="sub" id="nPeakAt">&nbsp;</div></div>
+    <div class="tile gcell"><label>Hoy entró (sol + red)</label><div class="gauge" id="gIn"></div><div class="sub" id="tOut">&nbsp;</div></div>
   </div>
   <p class="hint" id="histHint" style="margin:10px 0 0"></p>
 </div>
@@ -855,8 +862,14 @@
     $("nightTitle").textContent = title;
     $("nightRange").textContent = fmtClock(new Date(start)) + " – " + (end === now ? "ahora" : fmtClock(new Date(end)));
 
+    var nightEnd = now < sunriseToday ? sunriseToday : at(1, SUNRISE); // amanecer que cierra esta noche
+    if (title === "Anoche") nightEnd = sunriseToday;
+    var nightHours = Math.max(1, (nightEnd - start) / HOUR);
+
     if (!night.length) {
-      setVal("nKwh", "--", "kWh"); setVal("nAvg", "--", "W"); setVal("nPeak", "--", "W");
+      gauge("gKwh", null, 1, "kWh", 2, null);
+      gauge("gAvg", null, 1, "W", 0, null);
+      gauge("gPeak", null, 1, "W", 0, null);
       $("nSoc").innerHTML = $("nCover").innerHTML = $("nPeakAt").innerHTML = "&nbsp;";
       $("histHint").textContent = "Todavía no hay lecturas grabadas de " + title.toLowerCase() +
         ". La app graba una cada 10 s mientras está conectada, también con la pantalla apagada.";
@@ -864,19 +877,60 @@
       var disWh = sum(night, 3);
       var disMinutes = night.filter(function (r) { return r[3] > 0; }).length;
       var peak = night.reduce(function (p, r) { return r[6] < p.w ? { w: r[6], t: r[0] } : p; }, { w: 0, t: 0 });
-      setVal("nKwh", fmt(disWh / 1000, 2), "kWh");
-      $("nSoc").textContent = "SOC " + Math.round(night[0][1]) + " % → " + Math.round(night[night.length - 1][1]) + " %";
-      setVal("nAvg", disMinutes ? fmt(disWh / (disMinutes / 60), 0) : "--", "W");
-      $("nCover").textContent = "con datos de " + fmtDurationText(night.length / 60) + " de " + fmtDurationText((end - start) / HOUR);
-      setVal("nPeak", peak.w < 0 ? fmt(-peak.w, 0) : "--", "W");
-      $("nPeakAt").textContent = peak.w < 0 ? "media de 1 min, a las " + fmtClock(new Date(peak.t)) : " ";
+      // Energía disponible al anochecer hasta el corte (batería de 280 Ah × 25,6 V).
+      var soc0 = night[0][1], availKwh = Math.max(0.1, (soc0 - CUTOFF_SOC) / 100 * BATTERY_KWH);
+      var usedKwh = disWh / 1000;
+      // ¿Vas al ritmo? Proporción gastada frente a proporción de noche transcurrida.
+      var elapsed = Math.max(0.02, Math.min(1, (Math.min(end, nightEnd) - start) / (nightEnd - start)));
+      var usedFrac = usedKwh / availKwh;
+      var paceSt = usedFrac <= elapsed ? "good" : usedFrac <= elapsed * 1.15 ? "warn" : "bad";
+      gauge("gKwh", usedKwh, availKwh, "kWh", 2, paceSt);
+      $("nSoc").textContent = "de " + fmt(availKwh, 1) + " kWh · " + (paceSt === "good" ? "vas bien de ritmo" :
+        paceSt === "warn" ? "vas justo" : "vas por delante de la noche");
+
+      // Consumo medio frente al límite para llegar al amanecer desde el anochecer.
+      var avgW = disMinutes ? disWh / (disMinutes / 60) : 0, limitW = availKwh * 1000 / nightHours;
+      gauge("gAvg", disMinutes ? avgW : null, limitW * 2, "W", 0, avgW <= limitW ? "good" : avgW <= limitW * 1.1 ? "warn" : "bad");
+      $("nCover").textContent = "límite para llegar: " + fmt(limitW, 0) + " W";
+
+      var pk = peak.w < 0 ? -peak.w : 0;
+      gauge("gPeak", pk || null, INVERTER_W, "W", 0, pk < 1500 ? "good" : pk < 2400 ? "warn" : "bad");
+      $("nPeakAt").textContent = pk ? "a las " + fmtClock(new Date(peak.t)) + " · máx. inversor 3000 W" : " ";
       $("histHint").textContent = "";
     }
 
     var today = rows.filter(function (r) { return r[0] >= at(0, "00:00"); });
-    setVal("tIn", today.length ? fmt(sum(today, 4) / 1000, 2) : "--", "kWh");
-    $("tOut").textContent = today.length ? "entró (sol + red) · salió " + fmt(sum(today, 3) / 1000, 2) + " kWh" : " ";
+    gauge("gIn", today.length ? sum(today, 4) / 1000 : null, BATTERY_KWH, "kWh", 2, "charge");
+    $("tOut").textContent = today.length ? "salió " + fmt(sum(today, 3) / 1000, 2) + " kWh · batería " + fmt(BATTERY_KWH, 1) + " kWh" : " ";
   }
+
+  // ---------------------------------------------------------------- medidores semicirculares (ECharts)
+  var BATTERY_KWH = 7.168, INVERTER_W = 3000;
+  var GAUGE_COLORS = { good: "#22c55e", warn: "#f59e0b", bad: "#ef4444", charge: "#0284c7" };
+  var gauges = {};
+  function gauge(id, value, max, unit, decimals, st) {
+    if (!window.echarts) return;
+    var g = gauges[id] || (gauges[id] = echarts.init($(id)));
+    var css = getComputedStyle(document.documentElement);
+    var color = st ? GAUGE_COLORS[st] : css.getPropertyValue("--muted").trim();
+    var shown = value == null ? 0 : Math.min(value, max); // el arco no pasa del máximo; el número sí
+    g.setOption({
+      animation: false,
+      series: [{
+        type: "gauge", startAngle: 180, endAngle: 0, min: 0, max: max, radius: "128%", center: ["50%", "88%"],
+        progress: { show: true, width: 12, roundCap: true, itemStyle: Object.assign({ color: color },
+          theme.neon && st ? { shadowBlur: 12, shadowColor: color } : {}) },
+        axisLine: { roundCap: true, lineStyle: { width: 12, color: [[1, css.getPropertyValue("--line").trim()]] } },
+        pointer: { show: false }, axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
+        anchor: { show: false }, title: { show: false },
+        detail: { offsetCenter: [0, "-18%"], fontSize: 24, fontWeight: 800, color: css.getPropertyValue("--text").trim(),
+          formatter: function () { return value == null ? "--" : fmt(value, decimals) + "{u| " + unit + "}"; },
+          rich: { u: { fontSize: 13, fontWeight: 600, color: css.getPropertyValue("--muted").trim() } } },
+        data: [{ value: shown }]
+      }]
+    }, true);
+  }
+  window.addEventListener("resize", function () { for (var k in gauges) gauges[k].resize(); });
 
   function renderChart(rows, now) {
     if (!window.echarts) return;
@@ -945,7 +999,10 @@
       // pero en esta versión de ECharts falla con varios paneles ("reading 'coord'") y no se dibujaba nada.
       series: [
         { name: "SOC", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: soc, showSymbol: false, connectNulls: false,
-          lineStyle: Object.assign({ width: 2, color: COLOR_SOC, shadowColor: COLOR_SOC }, glow), itemStyle: { color: COLOR_SOC } },
+          lineStyle: Object.assign({ width: 2, color: COLOR_SOC, shadowColor: COLOR_SOC }, glow), itemStyle: { color: COLOR_SOC },
+          // Área verde con degradado (más intensa arriba), como la del consumo.
+          areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "rgba(22,163,74," + (theme.neon ? 0.55 : 0.45) + ")" }, { offset: 1, color: "rgba(22,163,74,0.05)" }]) } },
         { name: "Carga", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false,
           data: pw.map(function (d) { return [d[0], d[1] == null ? null : Math.max(0, d[1])]; }),
           lineStyle: Object.assign({ width: 2, color: COLOR_CHARGE, shadowColor: COLOR_CHARGE }, glow),
