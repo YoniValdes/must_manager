@@ -65,8 +65,8 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 
 ## Plan
 1. **Descubrir el servicio y las características BLE del BMS** con nRF Connect (escanear, conectar, capturar la lista de servicios y características). ✅ Hecho
-2. Capturar el tráfico entre BMS tools y el BMS (Opciones de desarrollador → "Registro de búsqueda de HCI Bluetooth" / HCI snoop log) y descifrar las tramas. ✅ Hecho (quedan flecos: signo de la corriente y bits de estado, ver `docs/protocolo_bms.md`)
-3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas. ← SIGUIENTE
+2. Capturar el tráfico entre BMS tools y el BMS (Opciones de desarrollador → "Registro de búsqueda de HCI Bluetooth" / HCI snoop log) y descifrar las tramas. ✅ Hecho (queda el fleco de los bits de estado, ver `docs/protocolo_bms.md`)
+3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas. ✅ Versión web probada con el BMS real (23-nov-2026); falta probar la APK. ← EN CURSO: pulido
 4. Registro periódico local (base de datos en el dispositivo) y gráficas: consumo por horas, descarga nocturna, carga solar y de red, horas restantes estimadas.
 5. Exportar a CSV y XLSX para analizar los datos y hacer gráficas fuera de la app (Excel, Google Sheets, etc.).
 6. Pulido para compartir: icono, nombre, instrucciones de instalación y manejo de errores.

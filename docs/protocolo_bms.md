@@ -29,7 +29,7 @@ validado contra `lectura_referencia_2026-11-23.md` (todos los valores coinciden)
 En `0A 01/02/03` los datos `01 01` parecen ser "pack inicial = 1, número de packs = 1".
 
 ## Respuestas
-Unidades: voltaje del pack en 0,01 V · celdas en mV · capacidad en 0,01 Ah · corriente en 0,01 A (con signo; negativo = descarga, por confirmar con batería descargando) · temperatura en 0,1 K → °C = (raw − 2730) / 10.
+Unidades: voltaje del pack en 0,01 V · celdas en mV · capacidad en 0,01 Ah · corriente en 0,01 A con signo (**negativo = descarga**, positivo = carga; confirmado el 23-nov-2026 a las 15:55: −20,73 A con el SOC bajando de 100 a 99 %) · temperatura en 0,1 K → °C = (raw − 2730) / 10.
 
 ### `0A 00` – Resumen (LEN 0x33)
 | Offset | Bytes | Campo | Ejemplo |
@@ -85,12 +85,12 @@ Ejemplo: celdas 3473, 3486, 3490, 3480, 3474, 3489, 3489, 3488 mV; T1 (celda 1) 
 
 ### `0A 03` – Pack: estado (LEN 0x0D)
 `02 00 80 04 06 00 00 00 00 00 00 00 00` con la batería llena (protección "Fully", DFET on, CFET indication off, control: limitación de carga, DFET, CFET y LED on).
-**Pendiente:** asignar los bits. Hace falta capturar este comando en otros estados (descargando, cargando, con alguna alarma).
+Descargando a −20,7 A con SOC 99 % (23-nov-2026, 15:55): `02 00 00 0E 06 00 00 00 00 00 00 00 00`. Desaparece el `80` del byte 2 (¿bit "Fully"?) y el byte 3 pasa de `04` a `0E`.
+**Pendiente:** asignar los bits. Hace falta capturar este comando en más estados (cargando, con alguna alarma) junto con la pantalla "Status data" de BMS tools.
 
 ### `00 01` / `00 04` / `00 05` – Información del dispositivo
 Cadenas ASCII: software `P8S200A-41080-1.03`, `P8S200A-41080-1.03-002`, hardware `21887V130`, y dos números de serie. No hace falta decodificarlas al detalle: sirven para **identificar el BMS** al conectar.
 
 ## Pendiente de confirmar
-- Signo y escala de la corriente con la batería descargando y cargando (en la captura era 0 A).
 - Unidades de carga/descarga acumuladas (venían a 0).
 - Bits de la trama de estado `0A 03`.

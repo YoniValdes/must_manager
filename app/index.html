@@ -166,8 +166,10 @@
     $("arc").setAttribute("stroke", socPct <= 20 ? "var(--bad)" : socPct <= 35 ? "var(--warn)" : "var(--good)");
     var w = b.voltageV * b.currentA;
     setVal("power", fmt(Math.abs(w), 0), "W");
-    // Signo por confirmar con la batería descargando (ver docs/protocolo_bms.md).
-    $("flow").textContent = Math.abs(b.currentA) < 0.05 ? "En reposo" : (b.currentA > 0 ? "Signo +" : "Signo −") + " (por confirmar)";
+    // Corriente negativa = descarga (la casa consume de la batería); positiva = carga (sol o red).
+    var flow = Math.abs(b.currentA) < 0.05 ? "En reposo" : b.currentA < 0 ? "Descargando" : "Cargando";
+    $("flow").textContent = flow;
+    $("flow").style.color = flow === "Cargando" ? "var(--charge)" : flow === "Descargando" ? "var(--warn)" : "";
     setVal("current", fmt(b.currentA, 2), "A");
     setVal("voltage", fmt(b.voltageV, 2), "V");
     setVal("remaining", fmt(b.remainingAh, 1), "Ah");
