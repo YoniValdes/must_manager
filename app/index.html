@@ -18,6 +18,7 @@
     --radius: 14px;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   body { padding: 16px; max-width: 980px; margin: 0 auto; }
@@ -73,10 +74,11 @@
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-  details.card { margin-top: 14px; }
-  details.card summary { cursor: pointer; font-weight: 600; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; }
-  details.card summary::before { content: "▸"; color: var(--muted); transition: transform .2s; }
-  details.card[open] summary::before { transform: rotate(90deg); }
+  button.icon { background: var(--card); color: var(--text); padding: 0; width: 42px; height: 42px; display: grid; place-items: center; }
+  button.icon[aria-expanded="true"] { background: var(--line); color: var(--good); }
+  button.icon.close { width: 32px; height: 32px; margin-left: auto; font-size: 15px; background: var(--bg); }
+  .settings { margin-bottom: 14px; border: 1px solid var(--line); }
+  .settings h2 { align-items: center; color: var(--text); font-size: 15px; margin-bottom: 0; }
   .set { display: grid; gap: 12px; margin-top: 14px; }
   .set label.row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.4; }
   .set input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--good); flex: none; margin-top: 1px; }
@@ -128,8 +130,32 @@
 <body>
 <header>
   <h1>Must Manager <small id="ver"></small></h1>
+  <button class="icon" id="bell" title="Alertas y ajustes" aria-label="Alertas y ajustes" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+  </button>
   <button id="btn">Conectar</button>
 </header>
+
+<div class="card settings" id="settingsCard" hidden>
+  <h2>Alertas y ajustes <button class="icon close" id="sClose" aria-label="Cerrar">✕</button></h2>
+  <div class="set">
+    <label class="row"><input type="checkbox" id="sSoc"><span>🔋 Avisar con la batería baja
+      <span class="sub"><br>Un aviso y otro más urgente; cada uno suena una vez.</span></span></label>
+    <div class="inline">Aviso al <input type="number" id="sSocWarn" min="5" max="95"> %
+      Urgente al <input type="number" id="sSocCrit" min="1" max="90"> %</div>
+    <label class="row"><input type="checkbox" id="sGrid"><span>⚡ Avisar cuando llega o se va la corriente
+      <span class="sub"><br>De noche, cualquier carga es la red. De día solo se detecta si carga más de lo que dan los paneles.</span></span></label>
+    <label class="row"><input type="checkbox" id="sSunrise"><span>🌙 Avisar si no llego al amanecer
+      <span class="sub"><br>De noche, con la media de los últimos 5 min. Vuelve a avisar solo si empeora.</span></span></label>
+    <label class="row"><input type="checkbox" id="sConn"><span>📡 Avisar si se pierde la conexión más de 5 min
+      <span class="sub"><br>Para saber que no se está grabando.</span></span></label>
+    <div class="times">Amanecer <input type="time" id="sRise"> Atardecer <input type="time" id="sSet">
+      Corte del inversor <input type="number" id="sCut" min="0" max="50"> %</div>
+    <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button>
+      <span class="saved" id="sSaved"></span></div>
+  </div>
+</div>
 
 <div class="status" id="status" data-state="disconnected">
   <span class="dot"></span><span id="msg">Pulsa Conectar. Recuerda cerrar BMS tools antes.</span>
@@ -213,26 +239,6 @@
     </dl>
   </div>
 </div>
-
-<details class="card" id="settingsCard">
-  <summary>Alertas y ajustes</summary>
-  <div class="set">
-    <label class="row"><input type="checkbox" id="sSoc"><span>🔋 Avisar con la batería baja
-      <span class="sub"><br>Un aviso y otro más urgente; cada uno suena una vez.</span></span></label>
-    <div class="inline">Aviso al <input type="number" id="sSocWarn" min="5" max="95"> %
-      Urgente al <input type="number" id="sSocCrit" min="1" max="90"> %</div>
-    <label class="row"><input type="checkbox" id="sGrid"><span>⚡ Avisar cuando llega o se va la corriente
-      <span class="sub"><br>De noche, cualquier carga es la red. De día solo se detecta si carga más de lo que dan los paneles.</span></span></label>
-    <label class="row"><input type="checkbox" id="sSunrise"><span>🌙 Avisar si no llego al amanecer
-      <span class="sub"><br>De noche, con la media de los últimos 5 min. Vuelve a avisar solo si empeora.</span></span></label>
-    <label class="row"><input type="checkbox" id="sConn"><span>📡 Avisar si se pierde la conexión más de 5 min
-      <span class="sub"><br>Para saber que no se está grabando.</span></span></label>
-    <div class="times">Amanecer <input type="time" id="sRise"> Atardecer <input type="time" id="sSet">
-      Corte del inversor <input type="number" id="sCut" min="0" max="50"> %</div>
-    <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button>
-      <span class="saved" id="sSaved"></span></div>
-  </div>
-</details>
 
 <p class="hint">Prototipo de solo lectura: la app únicamente envía preguntas de consulta al BMS, nunca cambia su configuración.
   El BMS admite una sola conexión: pulsa <b>Desconectar</b> antes de abrir BMS tools.</p>
@@ -636,8 +642,16 @@
       loadHistory();
     });
     $("sTest").addEventListener("click", function () { window.Android.testAlert(); });
+    var toggleSettings = function (open) {
+      $("settingsCard").hidden = !open;
+      $("bell").setAttribute("aria-expanded", String(open));
+      if (open) window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    $("bell").addEventListener("click", function () { toggleSettings($("settingsCard").hidden); });
+    $("sClose").addEventListener("click", function () { toggleSettings(false); });
   } else {
-    $("settingsCard").hidden = true;
+    // Sin la APK no hay alertas (no hay servicio que vigile en segundo plano).
+    $("bell").hidden = true;
   }
 
   // El historial se lee de la base de datos de la app: al abrir y cada minuto (también desconectado: son datos pasados).
