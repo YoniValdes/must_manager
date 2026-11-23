@@ -21,8 +21,12 @@ public final class ReadingStore extends SQLiteOpenHelper {
     }
 
     private ReadingStore(Context ctx) {
-        super(ctx, "lecturas.db", null, 1);
+        super(ctx, "lecturas.db", null, 2);
     }
+
+    /** v2: registro de la trama de estado (0A 03) cada vez que cambia, para descifrar sus bits. */
+    private static final String CREATE_STATUS = "CREATE TABLE IF NOT EXISTS status_log ("
+        + "ts INTEGER PRIMARY KEY, hex TEXT, soc INTEGER, a REAL)";
 
     @Override
     public void onCreate(SQLiteDatabase db) {
@@ -42,10 +46,23 @@ public final class ReadingStore extends SQLiteOpenHelper {
             + "t_max REAL,"
             + "t_mos REAL,"
             + "t_amb REAL)");
+        db.execSQL(CREATE_STATUS);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 2) db.execSQL(CREATE_STATUS);
+    }
+
+    public void insertStatus(long ts, String hex, BmsProtocol.Basic b) {
+        ContentValues v = new ContentValues();
+        v.put("ts", ts);
+        v.put("hex", hex);
+        if (b != null) {
+            v.put("soc", b.soc);
+            v.put("a", b.currentA);
+        }
+        getWritableDatabase().insertWithOnConflict("status_log", null, v, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     public void insert(long ts, double dtSeconds, BmsProtocol.Basic b, BmsProtocol.Cells c) {

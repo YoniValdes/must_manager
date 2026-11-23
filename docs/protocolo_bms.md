@@ -85,8 +85,24 @@ Ejemplo: celdas 3473, 3486, 3490, 3480, 3474, 3489, 3489, 3488 mV; T1 (celda 1) 
 
 ### `0A 03` – Pack: estado (LEN 0x0D)
 `02 00 80 04 06 00 00 00 00 00 00 00 00` con la batería llena (protección "Fully", DFET on, CFET indication off, control: limitación de carga, DFET, CFET y LED on).
-Descargando a −20,7 A con SOC 99 % (23-nov-2026, 15:55): `02 00 00 0E 06 00 00 00 00 00 00 00 00`. Desaparece el `80` del byte 2 (¿bit "Fully"?) y el byte 3 pasa de `04` a `0E`.
-**Pendiente:** asignar los bits. Hace falta capturar este comando en más estados (cargando, con alguna alarma) junto con la pantalla "Status data" de BMS tools.
+Descargando a −20,7 A con SOC 99 % (23-nov-2026, 15:55): `02 00 00 0E 06 00 00 00 00 00 00 00 00`.
+
+La estructura coincide con la trama de estado/alarmas de **PACE**. Decodificación en `app/status.js` (pruebas: `tools/test-status.js`):
+
+| Byte | Contenido (PACE) | Estado |
+|---|---|---|
+| 0 | `02` (¿id o tipo?) | desconocido |
+| 1 | Protección 1: b0 sobretensión celda, b1 subtensión celda, b2 sobretensión pack, b3 subtensión pack, b4 sobrecorriente carga, b5 sobrecorriente descarga, b6 cortocircuito | por confirmar |
+| 2 | Protección 2: b0–b3 temperatura alta/baja en carga/descarga, b4 MOS alta, b5 ambiente alta, b6 ambiente baja, **b7 Fully** | **b7 confirmado** |
+| 3 | Indicación: b0 limitación de corriente, **b1 CFET**, **b2 DFET**, **b3 alimentación del pack**, b4 polaridad invertida, b5 ACin, b7 calefactor | **b1–b3 confirmados** |
+| 4 | Control (configuración: zumbador, LED, limitación…): `06` | sin mapear |
+| 5 | Fallos: b0 MOSFET carga, b1 MOSFET descarga, b2 sensor temperatura, b3 celda, b4 medición | por confirmar |
+| 6–7 | Balanceo: un bit por celda (byte 7 = celdas 1–8, byte 6 = 9–16) | por confirmar |
+| 8–9 | Avisos: mismas causas que protección 1 y 2 | por confirmar |
+| 10–12 | ? | desconocido (la app muestra cualquier bit activo) |
+
+La app guarda cada cambio de esta trama en la tabla `status_log` (con SOC y corriente) para ir confirmando bits.
+**Pendiente:** capturar BMS tools → "Status data" en otros estados (cargando con la red, balanceando, con algún aviso) y compararlo con `status_log`.
 
 ### `00 01` / `00 04` / `00 05` – Información del dispositivo
 Cadenas ASCII: software `P8S200A-41080-1.03`, `P8S200A-41080-1.03-002`, hardware `21887V130`, y dos números de serie. No hace falta decodificarlas al detalle: sirven para **identificar el BMS** al conectar.

@@ -290,6 +290,13 @@ public class MonitorService extends Service implements BmsClient.Listener {
 
     @Override
     public void onStatusBytes(byte[] data) {
+        // Se graba solo cuando cambia: así queda la historia de estados para descifrar los bits.
+        if (lastStatus == null || !java.util.Arrays.equals(lastStatus, data)) {
+            try {
+                store.insertStatus(System.currentTimeMillis(), BmsProtocol.toHex(data), lastBasic);
+            } catch (RuntimeException ignored) {
+            }
+        }
         lastStatus = data;
         if (ui != null) ui.onStatusBytes(data);
     }

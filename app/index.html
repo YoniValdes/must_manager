@@ -122,6 +122,7 @@
   dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; }
   dt { color: var(--muted); }
   dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  dd .sub { color: var(--muted); font-size: 12px; }
   .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; color: var(--muted); }
   .hint { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 14px; }
   .empty { color: var(--muted); text-align: center; padding: 30px 10px; }
@@ -231,8 +232,15 @@
     </dl>
   </div>
   <div class="card">
-    <h2>Dispositivo</h2>
+    <h2>Estado del BMS</h2>
     <dl>
+      <dt>Carga</dt><dd id="stCharge">--</dd>
+      <dt>Descarga</dt><dd id="stDischarge">--</dd>
+      <dt>Protecciones</dt><dd id="stProt">--</dd>
+      <dt>Balanceo</dt><dd id="stBal">--</dd>
+      <dt>Avisos y fallos</dt><dd id="stAlarm">--</dd>
+    </dl>
+    <dl style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <dt>BMS</dt><dd id="device" class="mono">--</dd>
       <dt>Nº de serie</dt><dd id="serial" class="mono">--</dd>
       <dt>Estado (bruto)</dt><dd id="statushex" class="mono">--</dd>
@@ -245,6 +253,7 @@
 
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js"></script>
+<script src="status.js"></script>
 <script>
 (function () {
   "use strict";
@@ -378,7 +387,8 @@
     $("energy").innerHTML = "&nbsp;";
     $("delta").innerHTML = "";
     $("cells").innerHTML = "<div class='empty' style='grid-column:1/-1'>Sin datos: no estás conectado</div>";
-    ["soh", "cycles", "full", "tcells", "tmos", "tamb", "device", "serial", "statushex"].forEach(function (id) {
+    ["soh", "cycles", "full", "tcells", "tmos", "tamb", "device", "serial", "statushex",
+      "stCharge", "stDischarge", "stProt", "stBal", "stAlarm"].forEach(function (id) {
       $(id).textContent = "--";
     });
     $("time").textContent = "";
@@ -579,6 +589,29 @@
     }, true);
   }
 
+  // ---------------------------------------------------------------- estado del BMS (app/status.js)
+  function stLine(ok, text) {
+    // Icono + texto: el estado nunca depende solo del color.
+    return "<span style='color:" + (ok ? "var(--good)" : "var(--warn)") + "'>" + (ok ? "✔" : "⛔") + "</span> " + esc(text);
+  }
+  function stList(items) {
+    return items.map(function (x) { return "⚠️ " + esc(x.text) + (x.confirmed ? "" : " <span class='sub'>(por confirmar)</span>"); }).join("<br>");
+  }
+  function renderStatus(hex) {
+    $("statushex").textContent = hex;
+    var s = window.BmsStatus && window.BmsStatus.decode(hex);
+    if (!s) return;
+    $("stCharge").innerHTML = s.chargeAllowed ? stLine(true, "Permitida") :
+      stLine(false, s.full ? "Cortada: batería llena" : "Cortada por el BMS");
+    $("stDischarge").innerHTML = s.dischargeAllowed ? stLine(true, "Permitida") : stLine(false, "Cortada por el BMS");
+    var prot = s.protections.filter(function (p) { return !/llena/.test(p.text); });
+    $("stProt").innerHTML = prot.length ? stList(prot) : (s.full ? "Solo «batería llena» (normal)" : "Ninguna");
+    $("stBal").innerHTML = s.balancing.length ? "⚖️ Celdas " + s.balancing.join(", ") + " <span class='sub'>(por confirmar)</span>" : "Ninguna celda";
+    var extra = s.alarms.concat(s.faults, s.indications);
+    s.unknown.forEach(function (u) { extra.push({ text: "Bit desconocido activo: byte " + u.byte + ", bit " + u.bit, confirmed: false }); });
+    $("stAlarm").innerHTML = extra.length ? stList(extra) : "Ninguno";
+  }
+
   window.bms = function (m) {
     switch (m.type) {
       case "state": setState(m.state, m.message); break;
@@ -590,7 +623,7 @@
         if (m.key === 1) $("device").textContent = m.text;
         else { serials[m.key] = m.text; $("serial").textContent = Object.keys(serials).sort().map(function (k) { return serials[k]; }).join(" · "); }
         break;
-      case "status": $("statushex").textContent = m.hex; break;
+      case "status": renderStatus(m.hex); break;
     }
   };
 
