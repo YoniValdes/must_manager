@@ -73,6 +73,7 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 4. Registro periódico local (base de datos en el dispositivo) y gráficas: consumo por horas, descarga nocturna, carga solar y de red, horas restantes estimadas. ← SIGUIENTE (necesita grabar con la pantalla apagada: servicio en primer plano en la APK)
 5. Exportar a CSV y XLSX para analizar los datos y hacer gráficas fuera de la app (Excel, Google Sheets, etc.).
 6. Pulido para compartir: icono, nombre, instrucciones de instalación y manejo de errores.
+- **Idea futura (sin internet):** calcular el amanecer y el atardecer de cada día con la fórmula astronómica (NOAA) a partir de la latitud, la longitud y la fecha. El usuario elegiría su provincia o municipio en una lista de coordenadas guardada en la app. Ahora son horas fijas en Ajustes (07:00 / 18:00), y en Cuba varían más de 1 h a lo largo del año.
 7. **Fase futura: leer el inversor** (cuando la app del BMS esté completa). El BMS solo ve la corriente neta de la batería (sol + red − consumo), así que no puede separar el aporte de los paneles ni el consumo real de la casa con sol. Solo el inversor conoce los W de FV, de red y de carga. Hay que averiguar su puerto de comunicación (independiente del BMS) y su protocolo, y capturar y descifrar el tráfico como con el BMS. Mientras tanto, la tarjeta de autonomía avisa de día de que la estimación incluye el sol y que es fiable de noche.
 
 ## Notas

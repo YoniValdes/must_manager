@@ -15,8 +15,26 @@
     --warn: #f59e0b;
     --bad: #ef4444;
     --charge: #38bdf8;
+    --acc: #22c55e;        /* color de la app (botones, selección); los de estado de arriba no cambian con la paleta */
+    --on-acc: #05210f;     /* texto sobre el acento */
+    --tile: #0f1418;       /* fondo de las casillas dentro de las tarjetas */
     --radius: 14px;
   }
+  /* ---- Neón (Personalizar): brillo en números y bordes con el color de acento ---- */
+  body.neon .tile b, body.neon .cell b, body.neon .ring .val b, body.neon .night .tile b {
+    text-shadow: 0 0 8px color-mix(in srgb, var(--acc) 55%, transparent); }
+  body.neon .card:not(.settings), body.neon .status { box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 22%, transparent),
+    0 0 18px -6px color-mix(in srgb, var(--acc) 45%, transparent); }
+  body.neon header h1 { text-shadow: 0 0 12px color-mix(in srgb, var(--acc) 50%, transparent); }
+  body.neon #arc { filter: drop-shadow(0 0 6px currentColor); }
+  body:not(.neon) .eta .big { text-shadow: 0 2px 8px rgba(0,0,0,.55); }
+  /* ---- Alto contraste: tarjetas bien separadas del fondo, casillas marcadas, textos más claros ---- */
+  body.hc { --muted: color-mix(in srgb, var(--text) 82%, var(--card)); }
+  body.hc .card, body.hc .status, body.hc .eta { border: 2px solid color-mix(in srgb, var(--text) 38%, var(--card)); }
+  body.hc .tile, body.hc .cell, body.hc .dev { border: 1px solid color-mix(in srgb, var(--text) 26%, var(--card));
+    background: color-mix(in srgb, var(--text) 9%, var(--card)); }
+  body.hc .tile b, body.hc .cell b { color: #fff; }
+  body.hc .eta .chip { background: rgba(0,0,0,.75); border-color: rgba(255,255,255,.4); }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
@@ -27,7 +45,7 @@
   header h1 small { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 8px; letter-spacing: 0; }
   @media (max-width: 480px) { header h1 { font-size: 22px; } }
   button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 10px 18px;
-    background: var(--good); color: #05210f; cursor: pointer; }
+    background: var(--acc); color: var(--on-acc); cursor: pointer; }
   button.secondary { background: var(--line); color: var(--text); }
   button:disabled { opacity: .5; }
 
@@ -46,15 +64,15 @@
   body.stale .eta, body.stale .hero, body.stale .card:not(.picker) { opacity: .35; filter: grayscale(1); transition: opacity .3s; }
   .picker { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
   .picker h2 { margin-bottom: 8px; }
-  .dev { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--bg);
+  .dev { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--tile);
     color: var(--text); border-radius: 10px; padding: 12px 14px; margin-top: 8px; font-weight: 400; border: 1px solid var(--line); }
-  .dev:active { border-color: var(--good); }
+  .dev:active { border-color: var(--acc); }
   .dev .name { font-weight: 700; font-size: 16px; }
   .dev .addr { color: var(--muted); font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
-  .dev .tag { font-size: 11px; background: var(--good); color: #05210f; border-radius: 999px; padding: 2px 8px; margin-left: 6px; font-weight: 700; }
+  .dev .tag { font-size: 11px; background: var(--acc); color: var(--on-acc); border-radius: 999px; padding: 2px 8px; margin-left: 6px; font-weight: 700; }
   .dev .sig { margin-left: auto; display: flex; gap: 2px; align-items: flex-end; height: 16px; }
   .dev .sig i { width: 4px; background: var(--line); border-radius: 1px; }
-  .dev .sig i.on { background: var(--good); }
+  .dev .sig i.on { background: var(--acc); }
   .picker .none { color: var(--muted); font-size: 14px; padding: 8px 2px; }
   /* ---- Tarjeta de autonomía: cielo según la hora + número en neón (color = situación) ---- */
   .eta { position: relative; overflow: hidden; border-radius: var(--radius); margin-bottom: 14px; min-height: 196px;
@@ -70,9 +88,12 @@
   .eta::after { content: ""; position: absolute; inset: 0; pointer-events: none;
     background: linear-gradient(0deg, rgba(5,8,18,.62) 0%, rgba(5,8,18,.22) 26%, rgba(5,8,18,0) 45%),
                 linear-gradient(90deg, rgba(5,8,18,.55) 0%, rgba(5,8,18,.28) 45%, rgba(5,8,18,0) 72%); }
-  .sky .cloud { animation: drift 80s ease-in-out infinite alternate; }
-  .sky .cloud.slow { animation-duration: 120s; }
-  @keyframes drift { from { transform: translateX(-30px); } to { transform: translateX(30px); } }
+  /* Nubes: vaivén suave de ida y vuelta, cada una a su ritmo (unidades del lienzo de 1000 de ancho) */
+  .sky .cloud { animation: drift 46s ease-in-out infinite alternate; }
+  .sky .cloud:nth-child(2) { animation-duration: 64s; animation-delay: -20s; }
+  .sky .cloud:nth-child(3) { animation-duration: 55s; animation-delay: -8s; }
+  .sky .cloud:nth-child(4) { animation-duration: 72s; animation-delay: -35s; }
+  @keyframes drift { from { transform: translateX(-70px); } to { transform: translateX(70px); } }
   .eta .content { position: relative; z-index: 1; padding: 18px 20px; }
   .eta .label { color: rgba(230,237,243,.78); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; }
   .eta .label span { text-transform: none; letter-spacing: 0; font-weight: 500; opacity: .8; }
@@ -103,23 +124,32 @@
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   button.icon { background: var(--card); color: var(--text); padding: 0; width: 42px; height: 42px; display: grid; place-items: center; }
-  button.icon[aria-expanded="true"] { background: var(--line); color: var(--good); }
-  button.icon.close { width: 32px; height: 32px; margin-left: auto; font-size: 15px; background: var(--bg); }
+  button.icon[aria-expanded="true"] { background: var(--line); color: var(--acc); }
+  button.icon.close { width: 32px; height: 32px; margin-left: auto; font-size: 15px; background: var(--tile); }
   .settings { margin-bottom: 14px; border: 1px solid var(--line); }
+  .settings > .sub { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .pals { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .pal { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; border-radius: 12px; padding: 10px 12px;
+    border: 2px solid transparent; font-weight: 600; font-size: 14px; text-align: left; }
+  .pal[aria-pressed="true"] { border-color: currentColor; }
+  .pal .sw { display: flex; gap: 4px; }
+  .pal .sw i { width: 18px; height: 18px; border-radius: 5px; display: block; }
+  button.toggle { background: var(--tile); color: var(--muted); border: 1px solid var(--line); }
+  button.toggle[aria-pressed="true"] { background: var(--acc); color: var(--on-acc); border-color: var(--acc); }
   .settings h2 { align-items: center; color: var(--text); font-size: 15px; margin-bottom: 0; }
   .set { display: grid; gap: 12px; margin-top: 14px; }
   .set label.row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.4; }
-  .set input[type=radio] { width: 20px; height: 20px; accent-color: var(--good); flex: none; margin-top: 1px; }
-  .set select { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .set input[type=radio] { width: 20px; height: 20px; accent-color: var(--acc); flex: none; margin-top: 1px; }
+  .set select { font: inherit; background: var(--tile); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
   #eResult { font-size: 13px; line-height: 1.5; }
-  .set input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--good); flex: none; margin-top: 1px; }
-  .set input[type=number], .set input[type=time] { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  .set input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--acc); flex: none; margin-top: 1px; }
+  .set input[type=number], .set input[type=time] { font: inherit; background: var(--tile); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 6px 8px; width: 84px; }
   .set .sub { color: var(--muted); font-size: 12px; }
   .set .inline { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; padding-left: 30px; }
   .set .times { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
   .set .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .set .saved { color: var(--good); font-size: 13px; }
+  .set .saved { color: var(--acc); font-size: 13px; }
   .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
@@ -130,7 +160,7 @@
   .ring .val b { font-size: 34px; font-variant-numeric: tabular-nums; }
   .ring .val span { color: var(--muted); font-size: 12px; }
   .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .tile { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .tile { background: var(--tile); border-radius: 10px; padding: 10px 12px; }
   .tile label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
   .tile b { font-size: 24px; font-variant-numeric: tabular-nums; }
   .tile b small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 2px; }
@@ -140,13 +170,13 @@
   h2 .badge { margin-left: auto; font-size: 13px; color: var(--text); }
   .cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   @media (max-width: 420px) { .cells { grid-template-columns: repeat(2, 1fr); } }
-  .cell { background: var(--bg); border-radius: 10px; padding: 8px 10px; border: 1px solid transparent; }
+  .cell { background: var(--tile); border-radius: 10px; padding: 8px 10px; border: 1px solid transparent; }
   .cell.max { border-color: var(--charge); }
   .cell.min { border-color: var(--warn); }
   .cell label { color: var(--muted); font-size: 11px; }
   .cell b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
   .cell .bar { height: 4px; background: var(--line); border-radius: 2px; margin-top: 6px; overflow: hidden; }
-  .cell .bar i { display: block; height: 100%; background: var(--good); }
+  .cell .bar i { display: block; height: 100%; background: var(--acc); }
 
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
   @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
@@ -162,6 +192,12 @@
 <body>
 <header>
   <h1>Must Manager <small id="ver"></small></h1>
+  <button class="icon" id="themeBtn" title="Personalizar" aria-label="Personalizar colores" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/>
+      <circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7" r="1.2" fill="currentColor"/>
+      <circle cx="15" cy="7.5" r="1.2" fill="currentColor"/></svg>
+  </button>
   <button class="icon" id="exportBtn" title="Exportar datos" aria-label="Exportar datos" aria-expanded="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
@@ -172,6 +208,17 @@
   </button>
   <button id="btn">Conectar</button>
 </header>
+
+<div class="card settings" id="themeCard" hidden>
+  <h2>Personalizar <button class="icon close" id="tClose" aria-label="Cerrar">✕</button></h2>
+  <div class="pals" id="pals"></div>
+  <div class="actions" style="margin-top:14px">
+    <button class="toggle" id="neonT" aria-pressed="true">✨ Neón</button>
+    <button class="toggle" id="hcT" aria-pressed="false">◐ Alto contraste</button>
+  </div>
+  <p class="sub" style="margin:10px 0 0">La tarjeta de autonomía conserva los colores del cielo según la hora.
+    Los colores de estado (verde, ámbar, rojo, azul) tampoco cambian, para que siempre signifiquen lo mismo.</p>
+</div>
 
 <div class="card settings" id="exportCard" hidden>
   <h2>Exportar datos <button class="icon close" id="eClose" aria-label="Cerrar">✕</button></h2>
@@ -647,6 +694,70 @@
     $("tcells").textContent = temps.length ? temps.map(function (t) { return fmt(t, 1); }).join(" · ") + " °C" : "--";
   }
 
+  // ---------------------------------------------------------------- paletas (Personalizar)
+  // Cambian fondo, tarjetas, casillas, líneas, texto y acento. Los colores de estado no cambian.
+  var PALETTES = [
+    { id: "original", name: "Original", bg: "#0f1418", card: "#182027", tile: "#0f1418", line: "#26313a", text: "#e6edf3", muted: "#8b98a5", acc: "#22c55e" },
+    // Inspiradas en la ilustración del cielo
+    { id: "prado", name: "Prado", bg: "#0b1207", card: "#151f0e", tile: "#0d1609", line: "#283a19", text: "#f1f7e4", muted: "#a3b78d", acc: "#a3d65c" },
+    { id: "cielo", name: "Cielo", bg: "#06101e", card: "#0e1c32", tile: "#081426", line: "#1d3352", text: "#eaf4ff", muted: "#93acca", acc: "#3b9eff" },
+    { id: "coral", name: "Coral", bg: "#160a0c", card: "#241316", tile: "#1a0d10", line: "#3d2226", text: "#fff0ec", muted: "#c8a098", acc: "#ff7a6b" },
+    { id: "noche", name: "Noche", bg: "#060a18", card: "#0f1630", tile: "#0a1024", line: "#202c56", text: "#eef2ff", muted: "#99a4cf", acc: "#8fa8ff" },
+    { id: "lavanda", name: "Lavanda", bg: "#100b1b", card: "#1c1530", tile: "#140f24", line: "#302652", text: "#f4efff", muted: "#ae9fcf", acc: "#b794f6" },
+    // De analítica
+    { id: "oro", name: "Oro", bg: "#0d0902", card: "#1a1406", tile: "#120d03", line: "#33280d", text: "#fbf3d0", muted: "#bcaa78", acc: "#d4af37" },
+    { id: "cyber", name: "Cyberpunk", bg: "#070914", card: "#11142c", tile: "#0a0d1f", line: "#252c58", text: "#ecf4ff", muted: "#929ec7", acc: "#22d3ee" },
+    { id: "esmeralda", name: "Esmeralda", bg: "#03110b", card: "#0a2118", tile: "#061810", line: "#163d2c", text: "#e8fff4", muted: "#92c2aa", acc: "#34d399" },
+    { id: "grafito", name: "Grafito", bg: "#0c0c0d", card: "#1b1b1e", tile: "#111113", line: "#2e2e33", text: "#f2f2f3", muted: "#a0a0a8", acc: "#e4e4e7" }
+  ];
+  var theme = { id: "original", neon: true, hc: false };
+  function lum(h) {
+    return hex2rgb(h).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); })
+      .reduce(function (s, v, i) { return s + v * [0.2126, 0.7152, 0.0722][i]; }, 0);
+  }
+  function applyTheme() {
+    var p = PALETTES.filter(function (x) { return x.id === theme.id; })[0] || PALETTES[0];
+    var st = document.documentElement.style;
+    ["bg", "card", "tile", "line", "text", "muted", "acc"].forEach(function (k) { st.setProperty("--" + k, p[k]); });
+    st.setProperty("--on-acc", lum(p.acc) > 0.4 ? "#111111" : "#ffffff");
+    document.body.classList.toggle("neon", theme.neon);
+    document.body.classList.toggle("hc", theme.hc);
+    $("neonT").setAttribute("aria-pressed", String(theme.neon));
+    $("hcT").setAttribute("aria-pressed", String(theme.hc));
+    try { localStorage.setItem("mm-theme", JSON.stringify(theme)); } catch (e) { /* sin almacenamiento: no se recuerda */ }
+  }
+  function renderPalettes() {
+    $("pals").innerHTML = PALETTES.map(function (p) {
+      return "<button class='pal' data-p='" + p.id + "' aria-pressed='" + (p.id === theme.id) + "' style='background:" + p.card +
+        ";color:" + p.text + "'><span class='sw'>" + [p.bg, p.tile, p.line, p.muted, p.acc].map(function (c) {
+          return "<i style='background:" + c + "'></i>";
+        }).join("") + "</span>" + esc(p.name) + "</button>";
+    }).join("");
+  }
+  $("pals").addEventListener("click", function (e) {
+    var b = e.target.closest(".pal");
+    if (!b) return;
+    theme.id = b.dataset.p;
+    applyTheme(); renderPalettes(); loadHistory();
+  });
+  $("neonT").addEventListener("click", function () { theme.neon = !theme.neon; applyTheme(); loadHistory(); });
+  $("hcT").addEventListener("click", function () { theme.hc = !theme.hc; applyTheme(); loadHistory(); });
+  $("themeBtn").addEventListener("click", function () { renderPalettes(); togglePanel("themeCard", "themeBtn"); });
+  $("tClose").addEventListener("click", function () { togglePanel("themeCard", "themeBtn", false); });
+  try {
+    var saved = JSON.parse(localStorage.getItem("mm-theme") || "null");
+    if (saved) theme = { id: saved.id || "original", neon: saved.neon !== false, hc: !!saved.hc };
+  } catch (e) { /* por defecto */ }
+  // Pruebas de diseño en el navegador: ?tema=coral&neon=0&hc=1&panel=tema
+  (function () {
+    var q = location.search, m = q.match(/[?&]tema=(\w+)/);
+    if (m) theme.id = m[1];
+    if (/[?&]neon=0/.test(q)) theme.neon = false;
+    if (/[?&]hc=1/.test(q)) theme.hc = true;
+    if (/[?&]panel=tema/.test(q)) setTimeout(function () { renderPalettes(); togglePanel("themeCard", "themeBtn", true); }, 0);
+  })();
+  applyTheme();
+
   // ---------------------------------------------------------------- historial (solo APK)
   // Filas de Android.getHistory: [t, soc, w_media, wh_descarga, wh_carga, delta_max, w_min, w_max] por minuto.
   var hasHistory = hasBridge && typeof window.Android.getHistory === "function";
@@ -729,13 +840,17 @@
       pw.push([r[0], r[2]]);
       prev = r[0];
     });
-    var muted = "#8b98a5", grid = "#26313a";
+    // Colores de ejes y fondo de la paleta activa; con neón, las líneas brillan.
+    var css = getComputedStyle(document.documentElement);
+    var muted = css.getPropertyValue("--muted").trim() || "#8b98a5", grid = css.getPropertyValue("--line").trim() || "#26313a";
+    var glow = theme.neon ? { shadowBlur: 10 } : { shadowBlur: 0 };
     chart.setOption({
       animation: false,
       textStyle: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" },
       axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: muted } },
       tooltip: {
-        trigger: "axis", backgroundColor: "#0f1418", borderColor: grid, textStyle: { color: "#e6edf3", fontSize: 12 },
+        trigger: "axis", backgroundColor: css.getPropertyValue("--bg").trim(), borderColor: grid,
+        textStyle: { color: css.getPropertyValue("--text").trim(), fontSize: 12 },
         formatter: function (ps) {
           if (!ps.length) return "";
           var out = fmtClock(new Date(ps[0].value[0]));
@@ -764,9 +879,9 @@
         pieces: [{ lt: 0, color: COLOR_DISCHARGE }, { gte: 0, color: COLOR_CHARGE }] },
       series: [
         { name: "SOC", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: soc, showSymbol: false, connectNulls: false,
-          lineStyle: { width: 2, color: COLOR_SOC }, itemStyle: { color: COLOR_SOC } },
+          lineStyle: Object.assign({ width: 2, color: COLOR_SOC, shadowColor: COLOR_SOC }, glow), itemStyle: { color: COLOR_SOC } },
         { name: "Potencia", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: pw, showSymbol: false, connectNulls: false,
-          lineStyle: { width: 2 }, areaStyle: { opacity: 0.3 },
+          lineStyle: Object.assign({ width: 2, shadowColor: "rgba(255,255,255,0.35)" }, glow), areaStyle: { opacity: theme.neon ? 0.38 : 0.3 },
           markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: muted, type: "solid", width: 1 }, data: [{ yAxis: 0 }] } }
       ]
     }, true);
@@ -872,7 +987,7 @@
   // Paneles de la cabecera (exportar y ajustes): solo uno abierto a la vez.
   function togglePanel(cardId, btnId, force) {
     var open = typeof force === "boolean" ? force : $(cardId).hidden;
-    [["exportCard", "exportBtn"], ["settingsCard", "bell"]].forEach(function (p) {
+    [["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"]].forEach(function (p) {
       $(p[0]).hidden = true;
       $(p[1]).setAttribute("aria-expanded", "false");
     });
