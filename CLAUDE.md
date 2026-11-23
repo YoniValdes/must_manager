@@ -43,7 +43,17 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - Los logs en bruto (bug report / `btsnoop_hci.log`) contienen datos personales de la tablet: **no se suben a Git**.
 
 ## Dispositivo de pruebas
-- Todas las pruebas se hacen en la tablet de Jhonny: **Samsung Galaxy Tab S9 FE** (One UI). No usa el teléfono para este proyecto. Dar siempre las rutas de menú de Samsung.
+- Todas las pruebas se hacen en la tablet de Jhonny: **Samsung Galaxy Tab S9 FE** (One UI, Android 16). No usa el teléfono para este proyecto. Dar siempre las rutas de menú de Samsung.
+
+## Repositorio, entorno y compilación
+- GitHub (privado): https://github.com/YoniValdes/must_manager — rama `main`. En el PC: `D:\Git_Projects\must_manager` (Git Credential Manager con la cuenta YoniValdes; sin `gh`).
+- Tablet: Termux (`~/proyectos/`, `gh` autenticado). Ritual: `git pull` al empezar, commit y push al terminar.
+- Arquitectura: interfaz en `app/` (HTML + JS) y Java solo para Bluetooth/almacenamiento, igual que el proyecto `analitica` (`D:\Git_Projects\analitica`). **Sin Gradle ni Kotlin** para no depender de descargas grandes; Java 8 (`--release 8`, sin lambdas).
+- SDK portable en `D:\Android` (`jdk17`, `sdk` con build-tools 35.0.0, platform android-34 y platform-tools/adb; zips en `descargas\`).
+- Compilar: `.\android\build.ps1` (→ `dist\`), y con `-Install` la instala por USB con adb. Firma en `secretos\` (fuera de Git; hacer copia de seguridad).
+- Pruebas del protocolo: `.\tools\test-protocol.ps1` (Java) y `node tools\test-webble.js` (JS).
+- Versión web: `app/index.html` usa Web Bluetooth (`app/webble.js`) si se abre en Chrome desde `localhost` o https. Fuera de Chrome muestra una demo.
+- CI/CD con GitHub Actions para publicar releases: previsto en el paso 6.
 
 ## Sistema de referencia (casa de Jhonny)
 - Equipo: Must HBP3000 LV (MD: HBP30-3024 LV). Inversor de 3000 W, onda senoidal pura, salida 120 V / 60 Hz.
