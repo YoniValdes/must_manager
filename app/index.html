@@ -559,8 +559,12 @@
     var dayLen = mod(s - r), sinceRise = mod(now - r);
     var isDay = sinceRise <= dayLen;
     var p = isDay ? sinceRise / dayLen : mod(now - s) / mod(r - s);
-    var x = 80 + p * 840, y = 172 - Math.sin(p * Math.PI) * 135;
-    $("sun").setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")");
+    // Arco por la mitad derecha (la izquierda la ocupa el texto): así se ve asomar tras las colinas.
+    // Cerca del horizonte el resplandor crece, como al amanecer y al atardecer de verdad.
+    var lift = Math.sin(p * Math.PI);
+    var x = 470 + p * 480, y = 178 - lift * 140, glowScale = 1 + (1 - lift) * 0.45;
+    var tf = "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ") scale(" + glowScale.toFixed(2) + ")";
+    $("sun").setAttribute("transform", tf);
     $("moon").setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")");
     $("sun").style.display = isDay ? "" : "none";
     $("moon").style.display = isDay ? "none" : "";
