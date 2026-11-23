@@ -35,7 +35,8 @@ public class BmsClient {
         /** state: scanning | connecting | connected | reconnecting | disconnected | error */
         void onState(String state, String message);
 
-        void onDeviceText(String text);
+        /** key 0x0001 = versión de software/hardware; 0x0004 / 0x0005 = números de serie. */
+        void onDeviceText(int key, String text);
 
         void onBasic(BmsProtocol.Basic basic);
 
@@ -74,6 +75,7 @@ public class BmsClient {
     private boolean scanning;
     private boolean polling;
     private int cycleIndex;
+    private boolean serialRequested;
     private int waitingKey = -1;
     private long lastGoodFrameAt;
     private boolean everGotData;
@@ -305,6 +307,7 @@ public class BmsClient {
                     lastGoodFrameAt = System.currentTimeMillis();
                     polling = true;
                     cycleIndex = 0;
+                    serialRequested = false;
                     // Al activar las notificaciones el BMS manda solo su información; esperamos un poco.
                     h.postDelayed(pollNext, 800);
                     h.postDelayed(watchdog, 5000);
@@ -367,7 +370,8 @@ public class BmsClient {
         @Override
         public void run() {
             if (!polling || gatt == null || txChar == null) return;
-            byte[] cmd = CYCLE[cycleIndex];
+            // Al conectar, primero se pide una vez el número de serie (como BMS tools).
+            byte[] cmd = serialRequested ? CYCLE[cycleIndex] : BmsProtocol.CMD_DEVICE_INFO;
             waitingKey = BmsProtocol.keyOf(cmd);
             send(cmd);
             h.postDelayed(responseTimeout, RESPONSE_TIMEOUT_MS);
@@ -385,6 +389,11 @@ public class BmsClient {
         h.removeCallbacks(responseTimeout);
         h.removeCallbacks(pollNext);
         waitingKey = -1;
+        if (!serialRequested) {
+            serialRequested = true;
+            h.postDelayed(pollNext, 150);
+            return;
+        }
         cycleIndex++;
         if (cycleIndex >= CYCLE.length) {
             cycleIndex = 0;
@@ -422,7 +431,7 @@ public class BmsClient {
                 default:
                     if ((f.key >> 8) == 0x00) {
                         String text = BmsProtocol.parseText(f.data);
-                        if (text.length() > 0) listener.onDeviceText(text);
+                        if (text.length() > 0) listener.onDeviceText(f.key, text);
                     }
                     break;
             }

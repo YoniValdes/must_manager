@@ -135,9 +135,9 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     }
 
     @Override
-    public void onDeviceText(String text) {
+    public void onDeviceText(int key, String text) {
         try {
-            send(new JSONObject().put("type", "device").put("text", text));
+            send(new JSONObject().put("type", "device").put("key", key).put("text", text));
         } catch (JSONException ignored) {
         }
     }

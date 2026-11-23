@@ -130,7 +130,7 @@
       if (f.key === 0x0a01) emit(parseBasic(f.data));
       else if (f.key === 0x0a02) emit(parseCells(f.data));
       else if (f.key === 0x0a03) emit({ type: "status", hex: toHex(f.data) });
-      else if ((f.key >> 8) === 0x00) { var t = parseText(f.data); if (t) emit({ type: "device", text: t }); }
+      else if ((f.key >> 8) === 0x00) { var t = parseText(f.data); if (t) emit({ type: "device", key: f.key, text: t }); }
       lastGood = Date.now();
       if (!everGotData && (f.key >> 8) === 0x0a) { everGotData = true; state("connected", "Conectado (Web Bluetooth)"); }
     } catch (e) {
@@ -177,7 +177,11 @@
     await rx.startNotifications();
     state("connected", "Conectado. Leyendo datos…");
     lastGood = Date.now();
-    await sleep(800); // al activar las notificaciones el BMS manda solo su información
+    await sleep(800); // al activar las notificaciones el BMS manda solo su información (versión)
+    // El número de serie se pide una vez (igual que hace BMS tools al conectar).
+    await send(CMD_DEVICE_INFO);
+    await waitFor(keyOf(CMD_DEVICE_INFO), RESPONSE_TIMEOUT_MS);
+    await sleep(150);
 
     while (running && id === sessionId && device.gatt.connected) {
       for (var i = 0; i < CYCLE.length && running && id === sessionId; i++) {

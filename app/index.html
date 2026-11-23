@@ -40,6 +40,19 @@
   @keyframes pulse { to { opacity: .3; } }
   .status .time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+  .eta { background: var(--card); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px;
+    border-left: 6px solid var(--line); }
+  .eta[data-level="good"] { border-left-color: var(--good); }
+  .eta[data-level="warn"] { border-left-color: var(--warn); }
+  .eta[data-level="bad"] { border-left-color: var(--bad); }
+  .eta[data-level="charge"] { border-left-color: var(--charge); }
+  .eta .label { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+  .eta .big { font-size: 46px; font-weight: 700; line-height: 1.1; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+  .eta .big small { font-size: 22px; color: var(--muted); font-weight: 600; margin: 0 6px 0 2px; }
+  .eta .line { font-size: 15px; margin-top: 4px; }
+  .eta .line.muted { color: var(--muted); font-size: 13px; }
+  .eta .verdict { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 15px; line-height: 1.4; }
+  .eta .verdict b { font-variant-numeric: tabular-nums; }
   .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
@@ -89,6 +102,14 @@
   <span class="time" id="time"></span>
 </div>
 
+<div class="eta" id="eta" data-level="">
+  <div class="label" id="etaLabel">Autonomía</div>
+  <div class="big" id="etaBig">--</div>
+  <div class="line" id="etaLine">Esperando datos del BMS…</div>
+  <div class="line muted" id="etaNote"></div>
+  <div class="verdict" id="etaVerdict" hidden></div>
+</div>
+
 <div class="hero">
   <div class="card soc">
     <div class="ring">
@@ -129,6 +150,7 @@
     <h2>Dispositivo</h2>
     <dl>
       <dt>BMS</dt><dd id="device" class="mono">--</dd>
+      <dt>Nº de serie</dt><dd id="serial" class="mono">--</dd>
       <dt>Estado (bruto)</dt><dd id="statushex" class="mono">--</dd>
     </dl>
   </div>
@@ -145,6 +167,88 @@
   var hasBridge = typeof window.Android !== "undefined";
   var state = "disconnected";
   var last = { basic: null, cells: null };
+
+  // ---------------------------------------------------------------- estimación de autonomía
+  var CUTOFF_SOC = 15;          // ajuste 38 del inversor: corta la descarga al 15 % de SOC
+  var SUNRISE = "07:00";        // amanecer aproximado (se hará configurable)
+  var WINDOW_MS = 5 * 60 * 1000; // media de la corriente en los últimos 5 minutos
+  var IDLE_A = 0.3;             // por debajo de esto se considera reposo
+  var samples = [];             // [{t, a}]
+  var serials = {};
+
+  function fmtDuration(h) {
+    if (!isFinite(h) || h < 0) return "--";
+    var total = Math.round(h * 60), hh = Math.floor(total / 60), mm = total % 60;
+    return hh > 0 ? hh + "<small>h</small>" + (mm < 10 ? "0" : "") + mm + "<small>min</small>" : mm + "<small>min</small>";
+  }
+  function fmtDurationText(h) {
+    var total = Math.round(Math.abs(h) * 60), hh = Math.floor(total / 60), mm = total % 60;
+    return hh > 0 ? hh + " h " + mm + " min" : mm + " min";
+  }
+  function fmtClock(date) { return date.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }); }
+  function nextSunrise(now) {
+    var p = SUNRISE.split(":"), d = new Date(now);
+    d.setHours(+p[0], +p[1], 0, 0);
+    if (d <= now) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  function renderEta(b) {
+    var now = Date.now();
+    samples.push({ t: now, a: b.currentA });
+    while (samples.length && now - samples[0].t > WINDOW_MS) samples.shift();
+    var avgA = samples.reduce(function (s, x) { return s + x.a; }, 0) / samples.length;
+    var spanMin = (now - samples[0].t) / 60000;
+    var avgW = Math.abs(avgA) * b.voltageV;
+    var cutoffAh = b.fullAh * CUTOFF_SOC / 100;
+    var usableAh = b.remainingAh - cutoffAh;
+    var note = spanMin < 1 ? "Calculando la media… (las primeras lecturas pueden variar)" :
+      "Media de los últimos " + Math.round(spanMin) + " min: " + fmt(avgW, 0) + " W";
+    var eta = $("eta"), verdict = $("etaVerdict");
+    verdict.hidden = true;
+
+    if (avgA <= -IDLE_A) {
+      var hours = usableAh / -avgA;
+      var reach = new Date(now + hours * 3600000);
+      var sunrise = nextSunrise(new Date(now));
+      var hoursToSunrise = (sunrise - now) / 3600000;
+      $("etaLabel").textContent = "Autonomía hasta el corte del " + CUTOFF_SOC + " %";
+      if (usableAh <= 0) {
+        eta.dataset.level = "bad";
+        $("etaBig").textContent = "En el límite";
+        $("etaLine").textContent = "El SOC está en el " + CUTOFF_SOC + " % o por debajo: el inversor cortará la batería.";
+      } else {
+        $("etaBig").innerHTML = fmtDuration(hours);
+        $("etaLine").innerHTML = "A este consumo llegas hasta las <b>" + fmtClock(reach) + "</b>";
+        var margin = hours - hoursToSunrise;
+        var maxW = usableAh * b.voltageV / hoursToSunrise;
+        verdict.hidden = false;
+        if (margin >= 0) {
+          eta.dataset.level = margin >= 1 ? "good" : "warn";
+          verdict.innerHTML = "☀️ Amanecer " + SUNRISE + ": <b>llegas</b> con " + fmtDurationText(margin) +
+            " de margen.<br>Puedes gastar hasta <b>" + fmt(maxW, 0) + " W</b> de media.";
+        } else {
+          eta.dataset.level = "bad";
+          verdict.innerHTML = "⚠️ Amanecer " + SUNRISE + ": <b>no llegas</b>, te faltan " + fmtDurationText(margin) +
+            ".<br>Para llegar, baja el consumo a <b>" + fmt(maxW, 0) + " W</b> de media (ahora " + fmt(avgW, 0) + " W).";
+        }
+      }
+    } else if (avgA >= IDLE_A) {
+      var toFull = Math.max(0, b.fullAh - b.remainingAh) / avgA;
+      eta.dataset.level = "charge";
+      $("etaLabel").textContent = "Cargando";
+      $("etaBig").innerHTML = toFull > 0 ? fmtDuration(toFull) : "Llena";
+      $("etaLine").innerHTML = toFull > 0 ? "para llenar al 100 % a este ritmo (≈ " + fmtClock(new Date(now + toFull * 3600000)) + ")" :
+        "La batería está llena.";
+      note = spanMin < 1 ? note : "Entrando de media " + fmt(avgW, 0) + " W (sol o red)";
+    } else {
+      eta.dataset.level = "";
+      $("etaLabel").textContent = "En reposo";
+      $("etaBig").textContent = "Sin consumo";
+      $("etaLine").textContent = "La batería ni carga ni descarga ahora mismo.";
+    }
+    $("etaNote").textContent = note;
+  }
 
   function fmt(v, d) { return v == null || isNaN(v) ? "--" : Number(v).toFixed(d).replace(".", ","); }
   function setVal(id, text, unit) { $(id).innerHTML = text + (unit ? "<small>" + unit + "</small>" : ""); }
@@ -180,6 +284,7 @@
     $("tmos").textContent = fmt(b.tempMosC, 1) + " °C";
     $("tamb").textContent = fmt(b.tempAmbientC, 1) + " °C";
     $("time").textContent = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    renderEta(b);
   }
 
   function renderCells(c) {
@@ -205,7 +310,11 @@
       case "state": setState(m.state, m.message); break;
       case "basic": renderBasic(m); break;
       case "cells": renderCells(m); break;
-      case "device": $("device").textContent = m.text; break;
+      case "device":
+        // 0x0001 = versión de software/hardware (llega sola al conectar); 0x0004/0x0005 = números de serie.
+        if (m.key === 1) $("device").textContent = m.text;
+        else { serials[m.key] = m.text; $("serial").textContent = Object.keys(serials).sort().map(function (k) { return serials[k]; }).join(" · "); }
+        break;
       case "status": $("statushex").textContent = m.hex; break;
     }
   };
@@ -236,9 +345,10 @@
   // Datos de ejemplo de la lectura de referencia del 23-nov-2026, para ver la pantalla en el PC.
   function demo() {
     window.bms({ type: "state", state: "connected", message: "Demostración con la lectura de referencia del 23-nov-2026" });
-    window.bms({ type: "device", text: "P8S200A-41080-1.03 · P8S200A-41080-1.03-002 · 21887V130" });
-    window.bms({ type: "basic", currentA: 0, voltageV: 27.89, remainingAh: 279.94, fullAh: 280, designAh: 280,
-      soc: 100, soh: 100, cycles: 212, tempMosC: 30.2, tempAmbientC: 32.9 });
+    window.bms({ type: "device", key: 1, text: "P8S200A-41080-1.03 · P8S200A-41080-1.03-002 · 21887V130" });
+    window.bms({ type: "device", key: 4, text: "410801351500888Z" });
+    window.bms({ type: "basic", currentA: -20.73, voltageV: 26.91, remainingAh: 278.2, fullAh: 280, designAh: 280,
+      soc: 99, soh: 100, cycles: 212, tempMosC: 30.1, tempAmbientC: 32.9 });
     window.bms({ type: "cells", packVoltageV: 27.89, mv: [3473, 3486, 3490, 3480, 3474, 3489, 3489, 3488],
       tempC: [30.1, 29.8, null, null, null, null, null, null] });
     window.bms({ type: "status", hex: "02 00 80 04 06 00 00 00 00 00 00 00 00" });
