@@ -119,20 +119,25 @@ final class Exporter {
             c.close();
         }
 
-        x.startSheet("Por hora", new String[]{"Hora", "Descargado (kWh)", "Cargado (kWh)", "Potencia media (W)",
-                "Pico de descarga (W)", "SOC mín (%)", "SOC máx (%)", "Diferencia celdas máx (mV)", "Lecturas"},
-            new int[]{20, 17, 15, 18, 19, 12, 12, 24, 10});
+        // Todo en positivo: consumo = lo que sale de la batería; carga = lo que entra (sol o red).
+        x.startSheet("Por hora", new String[]{"Hora", "Descargado (kWh)", "Cargado (kWh)", "Consumo medio (W)",
+                "Pico de consumo (W)", "Carga media (W)", "SOC mín (%)", "SOC máx (%)", "Diferencia celdas máx (mV)", "Lecturas"},
+            new int[]{20, 17, 15, 18, 19, 16, 12, 12, 24, 10});
         c = db.rawQuery("SELECT (ts / 3600000) * 3600000 AS h,"
-            + " SUM(CASE WHEN w < 0 THEN -w * dt ELSE 0 END) / 3600000.0,"
-            + " SUM(CASE WHEN w > 0 THEN w * dt ELSE 0 END) / 3600000.0,"
-            + " AVG(w), MIN(w), MIN(soc), MAX(soc), MAX(delta_mv), COUNT(*)"
+            + " SUM(CASE WHEN w < 0 THEN -w * dt ELSE 0 END),"
+            + " SUM(CASE WHEN w > 0 THEN w * dt ELSE 0 END),"
+            + " SUM(CASE WHEN w < 0 THEN dt ELSE 0 END),"
+            + " SUM(CASE WHEN w > 0 THEN dt ELSE 0 END),"
+            + " MIN(w), MIN(soc), MAX(soc), MAX(delta_mv), COUNT(*)"
             + " FROM readings WHERE ts >= ? AND ts < ? GROUP BY h ORDER BY h", args);
         try {
             while (c.moveToNext()) {
-                double peak = c.getDouble(4);
-                x.row(new XlsxWriter.Date(c.getLong(0)), round(c.getDouble(1), 3), round(c.getDouble(2), 3),
-                    round(c.getDouble(3), 0), peak < 0 ? round(-peak, 0) : 0, c.getInt(5), c.getInt(6),
-                    c.isNull(7) ? null : (Object) c.getInt(7), c.getInt(8));
+                double disWs = c.getDouble(1), chgWs = c.getDouble(2), disS = c.getDouble(3), chgS = c.getDouble(4);
+                double peak = c.getDouble(5);
+                x.row(new XlsxWriter.Date(c.getLong(0)), round(disWs / 3600000.0, 3), round(chgWs / 3600000.0, 3),
+                    disS > 0 ? round(disWs / disS, 0) : null, peak < 0 ? round(-peak, 0) : null,
+                    chgS > 0 ? round(chgWs / chgS, 0) : null, c.getInt(6), c.getInt(7),
+                    c.isNull(8) ? null : (Object) c.getInt(8), c.getInt(9));
             }
         } finally {
             c.close();
