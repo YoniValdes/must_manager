@@ -83,6 +83,14 @@ public class MonitorService extends Service implements BmsClient.Listener {
         }
         goForeground("Iniciando…");
         // intent == null: Android reinició el servicio tras cerrarlo. Si estábamos monitorizando, reconectamos.
+        // Pero no tras actualizar la app: en ese caso se espera a que el usuario pulse Conectar.
+        if (intent == null && prefs.getInt("monitoringVersion", -1) != versionCode()) {
+            prefs.edit().putBoolean("monitoring", false).apply();
+            stopForeground(true);
+            foreground = false;
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         if (intent == null && prefs.getBoolean("monitoring", false)) {
             String addr = prefs.getString("lastAddress", null);
             if (addr != null) {
@@ -122,7 +130,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
     public void connectTo(String address) {
         startSelfForeground();
         acquireWakeLock();
-        prefs.edit().putBoolean("monitoring", true).apply();
+        prefs.edit().putBoolean("monitoring", true).putInt("monitoringVersion", versionCode()).apply();
         lastSavedAt = 0;
         bms.connectTo(address);
     }
@@ -205,6 +213,15 @@ public class MonitorService extends Service implements BmsClient.Listener {
 
     private void releaseWakeLock() {
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+    }
+
+    @SuppressWarnings("deprecation")
+    private int versionCode() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private boolean isLive() {

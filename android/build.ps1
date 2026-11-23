@@ -82,5 +82,7 @@ Write-Host ("Listo: {0} ({1:N0} KB)" -f $apk, ((Get-Item $apk).Length / 1KB))
 
 if ($Install) {
     Write-Host "Instalando en la tablet (adb)…"
+    # Primero se detiene la app vieja para que suelte el BMS (si no, el BMS rechaza la próxima conexión un rato).
+    & $ADB shell am force-stop com.jhonny.mustmanager
     Run $ADB @("install", "-r", $apk)
 }

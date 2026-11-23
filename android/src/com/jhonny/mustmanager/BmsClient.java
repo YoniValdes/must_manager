@@ -59,7 +59,6 @@ public class BmsClient {
     private static final UUID CCCD = UUID.fromString(BmsProtocol.CCCD_UUID);
 
     private static final long DISCOVER_TIMEOUT_MS = 12000;
-    private static final long TARGET_SCAN_TIMEOUT_MS = 15000;
     private static final long CONNECT_TIMEOUT_MS = 15000;
     private static final long RESPONSE_TIMEOUT_MS = 2500;
     private static final long POLL_PERIOD_MS = 3000;
@@ -132,7 +131,7 @@ public class BmsClient {
         prefs.edit().putString("lastAddress", address).apply();
         running = true;
         everGotData = false;
-        connect(adapter.getRemoteDevice(address));
+        connect(adapter.getRemoteDevice(address), false);
     }
 
     public void stop() {
@@ -213,9 +212,6 @@ public class BmsClient {
                         foundNames.put(address, name != null ? name : address);
                         String last = prefs.getString("lastAddress", null);
                         listener.onDeviceFound(name, address, result.getRssi(), address.equals(last));
-                    } else if (address.equals(targetAddress)) {
-                        stopScan();
-                        connect(result.getDevice());
                     }
                 }
             });
@@ -227,7 +223,11 @@ public class BmsClient {
                 @Override
                 public void run() {
                     scanning = false;
-                    fail("Error al buscar dispositivos Bluetooth (código " + errorCode + "). Apaga y enciende el Bluetooth.");
+                    if (errorCode == ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY) {
+                        fail("Android limita las búsquedas seguidas. Espera 30 segundos y vuelve a pulsar Conectar.");
+                    } else {
+                        fail("Error al buscar dispositivos Bluetooth (código " + errorCode + "). Apaga y enciende el Bluetooth.");
+                    }
                 }
             });
         }
@@ -259,11 +259,24 @@ public class BmsClient {
 
     // ------------------------------------------------------------------ conexión
 
-    private void connect(BluetoothDevice device) {
-        listener.onState("connecting", "Conectando con " + targetName + "…");
+    /**
+     * auto = false: conexión directa (el usuario acaba de elegir el BMS), con tiempo límite.
+     * auto = true: reconexión. Android espera a ese dispositivo concreto y conecta en cuanto aparece,
+     * sin búsquedas (que Android limita a 5 cada 30 s y bloquea con la pantalla apagada) y sin tiempo límite.
+     */
+    private void connect(BluetoothDevice device, boolean auto) {
         rx.reset();
-        gatt = device.connectGatt(ctx, false, gattCallback, BluetoothDevice.TRANSPORT_LE);
-        h.postDelayed(connectTimeout, CONNECT_TIMEOUT_MS);
+        gatt = device.connectGatt(ctx, auto, gattCallback, BluetoothDevice.TRANSPORT_LE);
+        if (gatt == null) { // p. ej. Bluetooth apagado: se reintenta sin abandonar
+            retryOrFail("El Bluetooth no está disponible.");
+            return;
+        }
+        if (auto) {
+            listener.onState("reconnecting", "Esperando a " + targetName + ": se conectará en cuanto esté disponible…");
+        } else {
+            listener.onState("connecting", "Conectando con " + targetName + "…");
+            h.postDelayed(connectTimeout, CONNECT_TIMEOUT_MS);
+        }
     }
 
     private final Runnable connectTimeout = new Runnable() {
@@ -408,12 +421,8 @@ public class BmsClient {
     private final Runnable retry = new Runnable() {
         @Override
         public void run() {
-            if (!running || gatt != null) return;
-            discoverMode = false;
-            if (startScan()) {
-                listener.onState("reconnecting", "Buscando " + targetName + "…");
-                h.postDelayed(scanTimeout, TARGET_SCAN_TIMEOUT_MS);
-            }
+            if (!running || gatt != null || targetAddress == null) return;
+            connect(adapter.getRemoteDevice(targetAddress), true);
         }
     };
 
