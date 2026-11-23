@@ -55,19 +55,41 @@
   .dev .sig i { width: 4px; background: var(--line); border-radius: 1px; }
   .dev .sig i.on { background: var(--good); }
   .picker .none { color: var(--muted); font-size: 14px; padding: 8px 2px; }
-  .eta { background: var(--card); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px;
-    border-left: 6px solid var(--line); }
-  .eta[data-level="good"] { border-left-color: var(--good); }
-  .eta[data-level="warn"] { border-left-color: var(--warn); }
-  .eta[data-level="bad"] { border-left-color: var(--bad); }
-  .eta[data-level="charge"] { border-left-color: var(--charge); }
-  .eta .label { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
-  .eta .big { font-size: 46px; font-weight: 700; line-height: 1.1; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
-  .eta .big small { font-size: 22px; color: var(--muted); font-weight: 600; margin: 0 6px 0 2px; }
-  .eta .line { font-size: 15px; margin-top: 4px; }
-  .eta .line.muted { color: var(--muted); font-size: 13px; white-space: pre-line; }
-  .eta .verdict { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 15px; line-height: 1.4; }
-  .eta .verdict b { font-variant-numeric: tabular-nums; }
+  /* ---- Tarjeta de autonomía: cielo según la hora + número en neón (color = situación) ---- */
+  .eta { position: relative; overflow: hidden; border-radius: var(--radius); margin-bottom: 14px; min-height: 196px;
+    --sky-top: #070b1a; --sky-bottom: #17203b; --neon: #e6edf3;
+    background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom)); transition: background 2s; }
+  .eta[data-level="good"] { --neon: #4ade80; }
+  .eta[data-level="warn"] { --neon: #fbbf24; }
+  .eta[data-level="bad"] { --neon: #f87171; }
+  .eta[data-level="charge"] { --neon: #38bdf8; }
+  .eta .sky { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* Velo oscuro detrás del texto: el número se lee igual de bien con el cielo claro del mediodía */
+  .eta::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(5,8,18,.62) 0%, rgba(5,8,18,.38) 45%, rgba(5,8,18,0) 75%); }
+  .eta .content { position: relative; z-index: 1; padding: 18px 20px; }
+  .eta .label { color: rgba(230,237,243,.78); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; }
+  .eta .label span { text-transform: none; letter-spacing: 0; font-weight: 500; opacity: .8; }
+  .eta .big { font-size: 56px; font-weight: 800; line-height: 1.05; margin: 6px 0 4px; font-variant-numeric: tabular-nums;
+    color: #fff; text-shadow: 0 0 2px #fff, 0 0 10px var(--neon), 0 0 24px var(--neon), 0 0 44px var(--neon); }
+  .eta .big small { font-size: 24px; font-weight: 700; margin: 0 8px 0 3px; color: inherit; opacity: .85; }
+  .eta .line { font-size: 16px; color: #f1f5f9; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .eta .line b { color: #fff; }
+  .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .eta .chip { font-size: 13px; padding: 6px 11px; border-radius: 999px; background: rgba(5,8,18,.55); color: #e6edf3;
+    border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); line-height: 1.3; }
+  .eta .chip.verdict { border-color: var(--neon); box-shadow: 0 0 10px -2px var(--neon); }
+  .eta .chip b { font-variant-numeric: tabular-nums; }
+  /* Cielo: estrellas que titilan y sol que respira (muy suave, para no gastar batería) */
+  .sky .star { fill: #fff; animation: twinkle 3.5s ease-in-out infinite alternate; }
+  .sky #sunCore { animation: breathe 6s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+  @keyframes twinkle { from { opacity: .25; } to { opacity: 1; } }
+  @keyframes breathe { from { transform: scale(1); } to { transform: scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) { .sky .star, .sky #sunCore { animation: none; } .eta { transition: none; } }
+  /* Campana: rellena = alertas activas; solo silueta = desactivadas */
+  #bell svg path:first-child { fill: none; transition: fill .2s; }
+  #bell.on svg path:first-child { fill: currentColor; }
+  #bell.on { color: var(--warn); }
   .night { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
   @media (max-width: 640px) { .night { grid-template-columns: repeat(2, 1fr); } }
   .night .tile b { font-size: 22px; }
@@ -197,11 +219,26 @@
 </div>
 
 <div class="eta" id="eta" data-level="">
-  <div class="label" id="etaLabel">Autonomía</div>
-  <div class="big" id="etaBig">--</div>
-  <div class="line" id="etaLine">Esperando datos del BMS…</div>
-  <div class="line muted" id="etaNote"></div>
-  <div class="verdict" id="etaVerdict" hidden></div>
+  <svg class="sky" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <defs>
+      <radialGradient id="sunGlow"><stop offset="0" stop-color="#fff7d6"/><stop offset=".3" stop-color="#fde68a" stop-opacity=".85"/>
+        <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/></radialGradient>
+      <radialGradient id="moonGlow"><stop offset="0" stop-color="#dbe4ff" stop-opacity=".5"/><stop offset="1" stop-color="#dbe4ff" stop-opacity="0"/></radialGradient>
+      <mask id="crescent" maskContentUnits="userSpaceOnUse"><circle r="12" fill="#fff"/><circle cx="6" cy="-4" r="11" fill="#000"/></mask>
+    </defs>
+    <g id="stars"></g>
+    <g id="sun"><circle r="46" fill="url(#sunGlow)"/><circle id="sunCore" r="14" fill="#fff4c2"/></g>
+    <g id="moon"><circle r="34" fill="url(#moonGlow)"/><circle r="12" fill="#f1f5ff" mask="url(#crescent)"/></g>
+    <path id="hillFar" d="M0 158 C 55 138, 120 146, 185 152 S 310 132, 400 146 L400 200 L0 200 Z"/>
+    <path id="hillNear" d="M0 176 C 80 160, 160 184, 245 170 S 350 160, 400 172 L400 200 L0 200 Z"/>
+  </svg>
+  <div class="content">
+    <div class="label" id="etaLabel">Autonomía</div>
+    <div class="big" id="etaBig">--</div>
+    <div class="line" id="etaLine">Esperando datos del BMS…</div>
+    <div class="chips"><span class="chip verdict" id="etaVerdict" hidden></span><span class="chip" id="etaNote" hidden></span>
+      <span class="chip" id="etaSun" hidden>☀️ incluye aporte solar</span></div>
+  </div>
 </div>
 
 <div class="hero">
@@ -331,57 +368,139 @@
     var avgW = Math.abs(avgA) * b.voltageV;
     var cutoffAh = b.fullAh * CUTOFF_SOC / 100;
     var usableAh = b.remainingAh - cutoffAh;
-    var note = spanMin < 1 ? "Calculando la media… (las primeras lecturas pueden variar)" :
-      "Media de los últimos " + Math.round(spanMin) + " min: " + fmt(avgW, 0) + " W";
+    // Textos cortos: el número manda; el resto va en "pastillas" de una línea.
+    var note = spanMin < 1 ? "Calculando la media…" : "Media " + Math.round(spanMin) + " min · " + fmt(avgW, 0) + " W";
     var eta = $("eta"), verdict = $("etaVerdict");
     verdict.hidden = true;
+    $("etaSun").hidden = true;
 
     if (avgA <= -IDLE_A) {
       var hours = usableAh / -avgA;
       var reach = new Date(now + hours * 3600000);
       var sunrise = nextSunrise(new Date(now));
       var hoursToSunrise = (sunrise - now) / 3600000;
-      $("etaLabel").textContent = "Autonomía hasta el corte del " + CUTOFF_SOC + " %";
+      $("etaLabel").innerHTML = "Autonomía <span>· hasta el " + CUTOFF_SOC + " %</span>";
       if (usableAh <= 0) {
         eta.dataset.level = "bad";
         $("etaBig").textContent = "En el límite";
-        $("etaLine").textContent = "El SOC está en el " + CUTOFF_SOC + " % o por debajo: el inversor cortará la batería.";
+        $("etaLine").textContent = "El inversor cortará la batería al " + CUTOFF_SOC + " %";
       } else {
         $("etaBig").innerHTML = fmtDuration(hours);
-        $("etaLine").innerHTML = "A este consumo llegas hasta las <b>" + fmtClock(reach) + "</b>";
+        $("etaLine").innerHTML = "Llegas hasta las <b>" + fmtClock(reach) + "</b>";
         var margin = hours - hoursToSunrise;
         var maxW = usableAh * b.voltageV / hoursToSunrise;
         verdict.hidden = false;
         if (margin >= 0) {
           eta.dataset.level = margin >= 1 ? "good" : "warn";
-          verdict.innerHTML = "☀️ Amanecer " + SUNRISE + ": <b>llegas</b> con " + fmtDurationText(margin) +
-            " de margen.<br>Puedes gastar hasta <b>" + fmt(maxW, 0) + " W</b> de media.";
+          verdict.innerHTML = (margin >= 1 ? "✔" : "⚠️") + " Llegas al amanecer · máx. <b>" + fmt(maxW, 0) + " W</b>";
         } else {
           eta.dataset.level = "bad";
-          verdict.innerHTML = "⚠️ Amanecer " + SUNRISE + ": <b>no llegas</b>, te faltan " + fmtDurationText(margin) +
-            ".<br>Para llegar, baja el consumo a <b>" + fmt(maxW, 0) + " W</b> de media (ahora " + fmt(avgW, 0) + " W).";
+          verdict.innerHTML = "⛔ No llegas al amanecer · baja a <b>" + fmt(maxW, 0) + " W</b>";
         }
       }
-      // El BMS solo ve el neto (sol + red − consumo): con sol, la descarga real de la casa es mayor.
-      if (isDaytime(new Date(now))) {
-        note += "\n☀️ Con sol, esta estimación ya descuenta lo que aportan los paneles: será fiable cuando anochezca.";
-      }
+      // El BMS solo ve el neto (sol + red − consumo): de día la estimación incluye el sol.
+      $("etaSun").hidden = !isDaytime(new Date(now));
     } else if (avgA >= IDLE_A) {
       var toFull = Math.max(0, b.fullAh - b.remainingAh) / avgA;
       eta.dataset.level = "charge";
-      $("etaLabel").textContent = "Cargando";
+      $("etaLabel").innerHTML = "Cargando <span>· sol o red</span>";
       $("etaBig").innerHTML = toFull > 0 ? fmtDuration(toFull) : "Llena";
-      $("etaLine").innerHTML = toFull > 0 ? "para llenar al 100 % a este ritmo (≈ " + fmtClock(new Date(now + toFull * 3600000)) + ")" :
-        "La batería está llena.";
-      note = spanMin < 1 ? note : "Entrando de media " + fmt(avgW, 0) + " W (sol o red)";
+      $("etaLine").innerHTML = toFull > 0 ? "Llena hacia las <b>" + fmtClock(new Date(now + toFull * 3600000)) + "</b>" : "La batería está llena";
+      note = spanMin < 1 ? note : "Entrando " + fmt(avgW, 0) + " W";
     } else {
       eta.dataset.level = "";
       $("etaLabel").textContent = "En reposo";
       $("etaBig").textContent = "Sin consumo";
-      $("etaLine").textContent = "La batería ni carga ni descarga ahora mismo.";
+      $("etaLine").textContent = "Ni carga ni descarga";
     }
     $("etaNote").textContent = note;
+    $("etaNote").hidden = false;
   }
+
+  // ---------------------------------------------------------------- cielo de la tarjeta de autonomía
+  // Colores del cielo a lo largo del día, en minutos relativos al amanecer (R) y al atardecer (S).
+  var SKY_KEYS = [
+    { at: "R", off: -70, top: "#070b1a", bottom: "#17203b" }, // noche
+    { at: "R", off: -15, top: "#2b1b4a", bottom: "#c2552e" }, // alba
+    { at: "R", off: 50, top: "#b45f1d", bottom: "#f0b04a" },  // mañana cálida
+    { at: "S", off: -100, top: "#b45f1d", bottom: "#f0b04a" }, // tarde
+    { at: "S", off: -20, top: "#8f2f12", bottom: "#f07a2a" }, // hora dorada
+    { at: "S", off: 20, top: "#3a1c4f", bottom: "#a8401c" },  // crepúsculo
+    { at: "S", off: 75, top: "#070b1a", bottom: "#17203b" }   // noche
+  ];
+  function hm(s) { var p = s.split(":"); return +p[0] * 60 + +p[1]; }
+  function hex2rgb(h) { return [1, 3, 5].map(function (i) { return parseInt(h.substr(i, 2), 16); }); }
+  function mix(a, b, t) {
+    var x = hex2rgb(a), y = hex2rgb(b);
+    return "#" + x.map(function (v, i) { var c = Math.round(v + (y[i] - v) * t); return (c < 16 ? "0" : "") + c.toString(16); }).join("");
+  }
+  function darken(h, t) { return mix(h, "#000000", t); }
+
+  (function makeStars() {
+    // Posiciones fijas (pseudoaleatorias) para que el cielo no "salte" al refrescar.
+    var g = $("stars"), seed = 7, html = "";
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var i = 0; i < 38; i++) {
+      html += "<circle class='star' cx='" + (rnd() * 400).toFixed(1) + "' cy='" + (rnd() * 130).toFixed(1) +
+        "' r='" + (0.5 + rnd() * 1.1).toFixed(2) + "' style='animation-delay:" + (rnd() * 3.5).toFixed(2) + "s'/>";
+    }
+    g.innerHTML = html;
+  })();
+
+  function updateSky() {
+    var d = new Date(), m = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+    var R = hm(SUNRISE), S = hm(SUNSET);
+    if (S <= R) S += 1440;
+    // Fotogramas clave en minutos absolutos, ordenados y cerrados en círculo (24 h).
+    var keys = SKY_KEYS.map(function (k) { return { m: (k.at === "R" ? R : S) + k.off, top: k.top, bottom: k.bottom }; });
+    var first = keys[0], last = keys[keys.length - 1];
+    keys.unshift({ m: last.m - 1440, top: last.top, bottom: last.bottom });
+    keys.push({ m: first.m + 1440, top: first.top, bottom: first.bottom });
+    var top = keys[0].top, bottom = keys[0].bottom;
+    for (var i = 0; i < keys.length - 1; i++) {
+      if (m >= keys[i].m && m <= keys[i + 1].m) {
+        var t = (m - keys[i].m) / Math.max(1, keys[i + 1].m - keys[i].m);
+        top = mix(keys[i].top, keys[i + 1].top, t);
+        bottom = mix(keys[i].bottom, keys[i + 1].bottom, t);
+        break;
+      }
+    }
+    var eta = $("eta");
+    eta.style.setProperty("--sky-top", top);
+    eta.style.setProperty("--sky-bottom", bottom);
+    $("hillFar").setAttribute("fill", darken(bottom, 0.5));
+    $("hillNear").setAttribute("fill", darken(bottom, 0.72));
+
+    // Sol: arco de izquierda a derecha entre el amanecer y el atardecer. Luna: lo mismo de noche.
+    var mod = function (v) { return ((v % 1440) + 1440) % 1440; };
+    var now = mod(d.getHours() * 60 + d.getMinutes()), r = mod(R), s = mod(S);
+    var dayLen = mod(s - r), sinceRise = mod(now - r);
+    var isDay = sinceRise <= dayLen;
+    var p = isDay ? sinceRise / dayLen : mod(now - s) / mod(r - s);
+    var x = 30 + p * 340, y = 160 - Math.sin(p * Math.PI) * 125;
+    $("sun").setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")");
+    $("moon").setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")");
+    $("sun").style.display = isDay ? "" : "none";
+    $("moon").style.display = isDay ? "none" : "";
+    // Estrellas: aparecen al anochecer y se apagan al alba (transición de ~1 h).
+    var night = isDay ? 0 : Math.min(1, mod(now - s) / 60, mod(r - now) / 45);
+    $("stars").setAttribute("opacity", night.toFixed(2));
+  }
+  updateSky();
+  setInterval(updateSky, 60000);
+
+  // ---------------------------------------------------------------- campana: rellena = alertas activas
+  function refreshBell() {
+    if (!hasBridge || typeof window.Android.notificationsEnabled !== "function") return;
+    var s = {};
+    try { s = JSON.parse(window.Android.getSettings()); } catch (e) { /* por defecto */ }
+    var any = s.socAlerts || s.gridAlerts || s.sunriseAlerts || s.connAlerts;
+    var on = !!any && window.Android.notificationsEnabled();
+    $("bell").classList.toggle("on", on);
+    $("bell").title = on ? "Alertas activadas" : "Alertas desactivadas (o notificaciones bloqueadas en Android)";
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { refreshBell(); updateSky(); } });
+  window.refreshBell = refreshBell; // Java la llama tras conceder (o negar) el permiso de notificaciones
 
   function fmt(v, d) { return v == null || isNaN(v) ? "--" : Number(v).toFixed(d).replace(".", ","); }
   function setVal(id, text, unit) { $(id).innerHTML = text + (unit ? "<small>" + unit + "</small>" : ""); }
@@ -423,8 +542,9 @@
     $("eta").dataset.level = "";
     $("etaLabel").textContent = "Autonomía";
     $("etaBig").textContent = "--";
-    $("etaLine").textContent = "Sin conexión con el BMS. Pulsa Conectar para ver los datos.";
-    $("etaNote").textContent = "";
+    $("etaLine").textContent = "Sin conexión · pulsa Conectar";
+    $("etaNote").hidden = true;
+    $("etaSun").hidden = true;
     $("etaVerdict").hidden = true;
   }
 
@@ -689,6 +809,8 @@
   }
   if (hasSettings) {
     try { applySettings(JSON.parse(window.Android.getSettings())); } catch (e) { /* valores por defecto */ }
+    updateSky();
+    refreshBell();
     $("sSave").addEventListener("click", function () {
       var s = {
         socAlerts: $("sSoc").checked, socWarn: +$("sSocWarn").value, socCritical: +$("sSocCrit").value,
@@ -701,6 +823,8 @@
       setTimeout(function () { $("sSaved").textContent = ""; }, 2500);
       if (last.basic) renderEta(last.basic);
       loadHistory();
+      updateSky();
+      refreshBell();
     });
     $("sTest").addEventListener("click", function () { window.Android.testAlert(); });
     $("bell").addEventListener("click", function () { togglePanel("settingsCard", "bell"); });

@@ -136,6 +136,13 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             }
         }
 
+        /** ¿Android deja mostrar notificaciones a la app? (permiso concedido y no bloqueadas en Ajustes) */
+        @JavascriptInterface
+        public boolean notificationsEnabled() {
+            android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            return nm != null && nm.areNotificationsEnabled();
+        }
+
         @JavascriptInterface
         public String getSettings() {
             return Settings.load(MainActivity.this).toJson().toString();
@@ -253,6 +260,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         if (requestCode != REQ_PERMS) return;
+        if (pageReady) web.evaluateJavascript("window.refreshBell && window.refreshBell()", null);
         if (hasPermissions()) {
             if (service != null) service.discover();
         } else {
