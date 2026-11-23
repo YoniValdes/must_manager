@@ -25,11 +25,25 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 
 ## Datos del BMS conocidos
 - Se conecta por Bluetooth (BLE) desde una tablet Android con la app oficial "BMS tools". También tiene WiFi, pero se prefiere BLE.
-- Software del BMS: `P8S200A-41080-1.03` · hardware: `21887V130` → placa probablemente de la familia **PACE** (8S, 200 A). Su protocolo está bastante documentado por la comunidad (tramas tipo PACE/PylonTech por RS485/RS232; por BLE suele ir un puente UART transparente).
+- Software del BMS: `P8S200A-41080-1.03` · hardware: `21887V130` (8S, 200 A). Por BLE **no** usa el protocolo PACE de texto: usa uno binario propio (ver abajo).
 - Protocolos hacia el inversor: RS485 = `LEOCH_2020`; CAN = sin protocolo.
 - Datos que ofrece la app oficial: SOC, SOH, voltaje y corriente del pack, ciclos, capacidad restante/total/diseño (Ah), voltaje de las 8 celdas (máx/mín y su posición), temperaturas, estado y alarmas.
 - Lectura de referencia (22-nov-2026, 17:45): SOC 62 %, 26,53 V, −10,7 A (descargando ~285 W), restante 173,6 Ah de 280 Ah, celdas 3313–3316 mV, 212 ciclos.
+- Lectura de referencia completa con las 8 celdas y los bits de estado (23-nov-2026, capturada a la vez que el HCI log): `docs/lectura_referencia_2026-11-23.md`.
 - La pestaña "Historical data" de la app oficial está vacía (no hay historial ni exportación). Ese es el motivo de este proyecto.
+
+## Servicios BLE del BMS (nRF Connect, 23-nov-2026)
+- Nombre BLE: `PC-BDC4` · MAC `7C:3E:82:1B:BD:C4` (el sufijo del nombre = últimos bytes de la MAC; en otras unidades cambiará → detectar por prefijo `PC-` y/o por el servicio `FFF0`).
+- Servicio `0000fff0-0000-1000-8000-00805f9b34fb`:
+  - `FFF1` [Notify, Read] → **RX**: respuestas del BMS (confirmado).
+  - `FFF2` [Read, Write, WriteNoResp] → **TX**: peticiones al BMS (confirmado).
+  - `FFF3` [Notify, Read, Write], `FFFA` [R, W, WNR], `FFFB` [N, R, W, WNR] → BMS tools no las usa. No tocar.
+- **Protocolo descifrado y validado: `docs/protocolo_bms.md`.** Tramas binarias `9A … 9D` con CRC-16/MODBUS, pregunta-respuesta.
+- La app solo enviará los **5 comandos de lectura** de la lista blanca de `docs/protocolo_bms.md`, escritos como constantes. Es la forma de cumplir la regla de solo lectura: nunca se construyen tramas arbitrarias.
+- Los logs en bruto (bug report / `btsnoop_hci.log`) contienen datos personales de la tablet: **no se suben a Git**.
+
+## Dispositivo de pruebas
+- Todas las pruebas se hacen en la tablet de Jhonny: **Samsung Galaxy Tab S9 FE** (One UI). No usa el teléfono para este proyecto. Dar siempre las rutas de menú de Samsung.
 
 ## Sistema de referencia (casa de Jhonny)
 - Equipo: Must HBP3000 LV (MD: HBP30-3024 LV). Inversor de 3000 W, onda senoidal pura, salida 120 V / 60 Hz.
@@ -40,11 +54,11 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - Configuración del inversor: 01 UTI · 02 amplio (vdE) · 03 110 V · 04 60 Hz · 10 SNU · 13 40 A · 14 Li · 37 SOC · 38 15 % · 39 95 %.
 
 ## Plan
-1. **Descubrir el servicio y las características BLE del BMS** con nRF Connect (escanear, conectar, capturar la lista de servicios y características). ← SIGUIENTE
-2. Capturar el tráfico entre BMS tools y el BMS (Opciones de desarrollador → "Registro de búsqueda de HCI Bluetooth" / HCI snoop log) y descifrar las tramas.
-3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas.
+1. **Descubrir el servicio y las características BLE del BMS** con nRF Connect (escanear, conectar, capturar la lista de servicios y características). ✅ Hecho
+2. Capturar el tráfico entre BMS tools y el BMS (Opciones de desarrollador → "Registro de búsqueda de HCI Bluetooth" / HCI snoop log) y descifrar las tramas. ✅ Hecho (quedan flecos: signo de la corriente y bits de estado, ver `docs/protocolo_bms.md`)
+3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas. ← SIGUIENTE
 4. Registro periódico local (base de datos en el dispositivo) y gráficas: consumo por horas, descarga nocturna, carga solar y de red, horas restantes estimadas.
-5. Exportar a CSV.
+5. Exportar a CSV y XLSX para analizar los datos y hacer gráficas fuera de la app (Excel, Google Sheets, etc.).
 6. Pulido para compartir: icono, nombre, instrucciones de instalación y manejo de errores.
 
 ## Notas
@@ -53,4 +67,5 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 
 ## Estado
 - Nombre del proyecto y de la APK decidido: **Must Manager**.
-- Pendiente el paso 1: Jhonny instalará nRF Connect cuando tenga internet y pasará capturas de los servicios BLE.
+- Paso 1 hecho (23-nov-2026): servicios BLE descubiertos (ver sección "Servicios BLE del BMS").
+- Paso 2 hecho (23-nov-2026): protocolo descifrado desde el HCI log; todos los valores coinciden con la lectura de referencia.
