@@ -73,6 +73,20 @@
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  details.card { margin-top: 14px; }
+  details.card summary { cursor: pointer; font-weight: 600; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.card summary::before { content: "▸"; color: var(--muted); transition: transform .2s; }
+  details.card[open] summary::before { transform: rotate(90deg); }
+  .set { display: grid; gap: 12px; margin-top: 14px; }
+  .set label.row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.4; }
+  .set input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--good); flex: none; margin-top: 1px; }
+  .set input[type=number], .set input[type=time] { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 8px; width: 84px; }
+  .set .sub { color: var(--muted); font-size: 12px; }
+  .set .inline { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; padding-left: 30px; }
+  .set .times { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .set .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .set .saved { color: var(--good); font-size: 13px; }
   .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
@@ -199,6 +213,26 @@
     </dl>
   </div>
 </div>
+
+<details class="card" id="settingsCard">
+  <summary>Alertas y ajustes</summary>
+  <div class="set">
+    <label class="row"><input type="checkbox" id="sSoc"><span>🔋 Avisar con la batería baja
+      <span class="sub"><br>Un aviso y otro más urgente; cada uno suena una vez.</span></span></label>
+    <div class="inline">Aviso al <input type="number" id="sSocWarn" min="5" max="95"> %
+      Urgente al <input type="number" id="sSocCrit" min="1" max="90"> %</div>
+    <label class="row"><input type="checkbox" id="sGrid"><span>⚡ Avisar cuando llega o se va la corriente
+      <span class="sub"><br>De noche, cualquier carga es la red. De día solo se detecta si carga más de lo que dan los paneles.</span></span></label>
+    <label class="row"><input type="checkbox" id="sSunrise"><span>🌙 Avisar si no llego al amanecer
+      <span class="sub"><br>De noche, con la media de los últimos 5 min. Vuelve a avisar solo si empeora.</span></span></label>
+    <label class="row"><input type="checkbox" id="sConn"><span>📡 Avisar si se pierde la conexión más de 5 min
+      <span class="sub"><br>Para saber que no se está grabando.</span></span></label>
+    <div class="times">Amanecer <input type="time" id="sRise"> Atardecer <input type="time" id="sSet">
+      Corte del inversor <input type="number" id="sCut" min="0" max="50"> %</div>
+    <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button>
+      <span class="saved" id="sSaved"></span></div>
+  </div>
+</details>
 
 <p class="hint">Prototipo de solo lectura: la app únicamente envía preguntas de consulta al BMS, nunca cambia su configuración.
   El BMS admite una sola conexión: pulsa <b>Desconectar</b> antes de abrir BMS tools.</p>
@@ -576,6 +610,34 @@
   } else {
     $("ver").textContent = "demo";
     setState("disconnected", "Este navegador no tiene Bluetooth. Pulsa Conectar para ver datos de ejemplo.");
+  }
+
+  // ---------------------------------------------------------------- ajustes (solo APK; se guardan en Android)
+  var hasSettings = hasBridge && typeof window.Android.getSettings === "function";
+  function applySettings(s) {
+    CUTOFF_SOC = s.cutoffSoc; SUNRISE = s.sunrise; SUNSET = s.sunset;
+    $("sSoc").checked = s.socAlerts; $("sSocWarn").value = s.socWarn; $("sSocCrit").value = s.socCritical;
+    $("sGrid").checked = s.gridAlerts; $("sSunrise").checked = s.sunriseAlerts; $("sConn").checked = s.connAlerts;
+    $("sRise").value = s.sunrise; $("sSet").value = s.sunset; $("sCut").value = s.cutoffSoc;
+  }
+  if (hasSettings) {
+    try { applySettings(JSON.parse(window.Android.getSettings())); } catch (e) { /* valores por defecto */ }
+    $("sSave").addEventListener("click", function () {
+      var s = {
+        socAlerts: $("sSoc").checked, socWarn: +$("sSocWarn").value, socCritical: +$("sSocCrit").value,
+        gridAlerts: $("sGrid").checked, sunriseAlerts: $("sSunrise").checked, connAlerts: $("sConn").checked,
+        sunrise: $("sRise").value, sunset: $("sSet").value, cutoffSoc: +$("sCut").value
+      };
+      // Android valida y corrige lo que esté fuera de rango; mostramos cómo quedó de verdad.
+      applySettings(JSON.parse(window.Android.setSettings(JSON.stringify(s))));
+      $("sSaved").textContent = "Guardado ✓";
+      setTimeout(function () { $("sSaved").textContent = ""; }, 2500);
+      if (last.basic) renderEta(last.basic);
+      loadHistory();
+    });
+    $("sTest").addEventListener("click", function () { window.Android.testAlert(); });
+  } else {
+    $("settingsCard").hidden = true;
   }
 
   // El historial se lee de la base de datos de la app: al abrir y cada minuto (también desconectado: son datos pasados).

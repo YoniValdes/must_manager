@@ -39,6 +39,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
     private final IBinder binder = new LocalBinder();
     private BmsClient bms;
     private ReadingStore store;
+    private AlertManager alerts;
     private SharedPreferences prefs;
     private BmsClient.Listener ui;
     private PowerManager.WakeLock wakeLock;
@@ -59,6 +60,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
         super.onCreate();
         bms = new BmsClient(this, this);
         store = ReadingStore.get(this);
+        alerts = new AlertManager(this);
         prefs = getSharedPreferences("mustmanager", Context.MODE_PRIVATE);
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "Monitor de la batería", NotificationManager.IMPORTANCE_LOW);
@@ -125,8 +127,13 @@ public class MonitorService extends Service implements BmsClient.Listener {
         bms.connectTo(address);
     }
 
+    public void testAlert() {
+        alerts.test();
+    }
+
     public void stopMonitoring() {
         prefs.edit().putBoolean("monitoring", false).apply();
+        alerts.onStopped();
         bms.stop();
         releaseWakeLock();
         if (foreground) {
@@ -217,6 +224,10 @@ public class MonitorService extends Service implements BmsClient.Listener {
             lastStatus = null;
             texts.clear();
         }
+        // Problema de conexión mientras se monitoriza (no cuando el usuario desconecta): alerta si dura más de 5 min.
+        if (("reconnecting".equals(state) || "error".equals(state)) && prefs.getBoolean("monitoring", false)) {
+            alerts.onConnectionProblem();
+        }
         if (!"connected".equals(state) || lastBasic == null) updateNotification(message, changed);
         if (ui != null) ui.onState(state, message);
     }
@@ -250,6 +261,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
         String flow = Math.abs(b.currentA) < 0.3 ? "En reposo" : (b.currentA < 0 ? "Descargando " : "Cargando ")
             + Math.round(Math.abs(w)) + " W";
         updateNotification("SOC " + b.soc + " % · " + flow, false);
+        alerts.onReading(b);
         if (ui != null) ui.onBasic(b);
     }
 

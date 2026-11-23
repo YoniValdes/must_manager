@@ -135,6 +135,29 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             }
         }
 
+        @JavascriptInterface
+        public String getSettings() {
+            return Settings.load(MainActivity.this).toJson().toString();
+        }
+
+        /** Guarda los ajustes (validados) y devuelve cómo han quedado. */
+        @JavascriptInterface
+        public String setSettings(String json) {
+            Settings s = Settings.fromJson(json);
+            s.save(MainActivity.this);
+            return s.toJson().toString();
+        }
+
+        @JavascriptInterface
+        public void testAlert() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (service != null) service.testAlert();
+                }
+            });
+        }
+
         /** Historial agrupado (ver ReadingStore.buckets). Los números de JS llegan como double. */
         @JavascriptInterface
         public String getHistory(double from, double to, double bucketMs) {
