@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono provisional: batería sobre fondo verde. Se cambiará en el paso 6 (pulido). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#15803D"
+        android:pathData="M22,6h64a16,16 0 0 1 16,16v64a16,16 0 0 1 -16,16h-64a16,16 0 0 1 -16,-16v-64a16,16 0 0 1 16,-16z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M47,22h14v7h-14z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M36,29h36v58h-36z"/>
+    <path android:fillColor="#15803D" android:pathData="M41,34h26v48h-26z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M41,56h26v26h-26z"/>
+</vector>

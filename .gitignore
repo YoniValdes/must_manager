@@ -1,0 +1,13 @@
+# Compilación
+android/build/
+dist/
+*.apk
+
+# Firma de la app y su contraseña: NUNCA a Git (guarda copia de seguridad aparte)
+secretos/
+*.keystore
+*.jks
+
+# Logs en bruto con datos personales de la tablet
+btsnoop_hci.log
+bugreport*.zip

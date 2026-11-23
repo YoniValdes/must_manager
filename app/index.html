@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Must Manager</title>
+<style>
+  :root {
+    --bg: #0f1418;
+    --card: #182027;
+    --line: #26313a;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --good: #22c55e;
+    --warn: #f59e0b;
+    --bad: #ef4444;
+    --charge: #38bdf8;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: 16px; max-width: 980px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: .2px; }
+  header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 10px 18px;
+    background: var(--good); color: #05210f; cursor: pointer; }
+  button.secondary { background: var(--line); color: var(--text); }
+  button:disabled { opacity: .5; }
+
+  .status { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: var(--radius);
+    padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .status[data-state="connected"] .dot { background: var(--good); }
+  .status[data-state="scanning"] .dot, .status[data-state="connecting"] .dot,
+  .status[data-state="reconnecting"] .dot { background: var(--warn); animation: pulse 1s infinite alternate; }
+  .status[data-state="error"] { outline: 1px solid var(--bad); }
+  .status[data-state="error"] .dot { background: var(--bad); }
+  @keyframes pulse { to { opacity: .3; } }
+  .status .time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
+  .soc { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring { position: relative; width: 140px; height: 140px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring .val b { font-size: 34px; font-variant-numeric: tabular-nums; }
+  .ring .val span { color: var(--muted); font-size: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .tile { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .tile label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+  .tile b { font-size: 24px; font-variant-numeric: tabular-nums; }
+  .tile b small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 2px; }
+  .tile .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
+  h2 .badge { margin-left: auto; font-size: 13px; color: var(--text); }
+  .cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 420px) { .cells { grid-template-columns: repeat(2, 1fr); } }
+  .cell { background: var(--bg); border-radius: 10px; padding: 8px 10px; border: 1px solid transparent; }
+  .cell.max { border-color: var(--charge); }
+  .cell.min { border-color: var(--warn); }
+  .cell label { color: var(--muted); font-size: 11px; }
+  .cell b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .cell .bar { height: 4px; background: var(--line); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .cell .bar i { display: block; height: 100%; background: var(--good); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 14px; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Must Manager <small id="ver"></small></h1>
+  <button id="btn">Conectar</button>
+</header>
+
+<div class="status" id="status" data-state="disconnected">
+  <span class="dot"></span><span id="msg">Pulsa Conectar. Recuerda cerrar BMS tools antes.</span>
+  <span class="time" id="time"></span>
+</div>
+
+<div class="hero">
+  <div class="card soc">
+    <div class="ring">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx="70" cy="70" r="60" fill="none" stroke="var(--line)" stroke-width="12"/>
+        <circle id="arc" cx="70" cy="70" r="60" fill="none" stroke="var(--good)" stroke-width="12"
+          stroke-linecap="round" stroke-dasharray="377" stroke-dashoffset="377"/>
+      </svg>
+      <div class="val"><b id="soc">--</b><span>SOC %</span></div>
+    </div>
+  </div>
+  <div class="card tiles">
+    <div class="tile"><label>Potencia</label><b id="power">--<small>W</small></b><div class="sub" id="flow">&nbsp;</div></div>
+    <div class="tile"><label>Corriente</label><b id="current">--<small>A</small></b><div class="sub">&nbsp;</div></div>
+    <div class="tile"><label>Voltaje</label><b id="voltage">--<small>V</small></b><div class="sub">&nbsp;</div></div>
+    <div class="tile"><label>Restante</label><b id="remaining">--<small>Ah</small></b><div class="sub" id="energy">&nbsp;</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Celdas <span class="badge" id="delta"></span></h2>
+  <div class="cells" id="cells"><div class="empty" style="grid-column:1/-1">Sin datos todavía</div></div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2>Batería</h2>
+    <dl>
+      <dt>Salud (SOH)</dt><dd id="soh">--</dd>
+      <dt>Ciclos</dt><dd id="cycles">--</dd>
+      <dt>Capacidad total</dt><dd id="full">--</dd>
+      <dt>Temp. celdas</dt><dd id="tcells">--</dd>
+      <dt>Temp. MOS</dt><dd id="tmos">--</dd>
+      <dt>Temp. ambiente</dt><dd id="tamb">--</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h2>Dispositivo</h2>
+    <dl>
+      <dt>BMS</dt><dd id="device" class="mono">--</dd>
+      <dt>Estado (bruto)</dt><dd id="statushex" class="mono">--</dd>
+    </dl>
+  </div>
+</div>
+
+<p class="hint">Prototipo de solo lectura: la app únicamente envía preguntas de consulta al BMS, nunca cambia su configuración.
+  El BMS admite una sola conexión: pulsa <b>Desconectar</b> antes de abrir BMS tools.</p>
+
+<script src="webble.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var hasBridge = typeof window.Android !== "undefined";
+  var state = "disconnected";
+  var last = { basic: null, cells: null };
+
+  function fmt(v, d) { return v == null || isNaN(v) ? "--" : Number(v).toFixed(d).replace(".", ","); }
+  function setVal(id, text, unit) { $(id).innerHTML = text + (unit ? "<small>" + unit + "</small>" : ""); }
+
+  function setState(s, message) {
+    state = s;
+    $("status").dataset.state = s;
+    if (message) $("msg").textContent = message;
+    var busy = s === "connected" || s === "scanning" || s === "connecting" || s === "reconnecting";
+    $("btn").textContent = busy ? "Desconectar" : "Conectar";
+    $("btn").className = busy ? "secondary" : "";
+  }
+
+  function renderBasic(b) {
+    last.basic = b;
+    var socPct = Math.max(0, Math.min(100, b.soc));
+    $("soc").textContent = socPct;
+    $("arc").setAttribute("stroke-dashoffset", String(377 * (1 - socPct / 100)));
+    $("arc").setAttribute("stroke", socPct <= 20 ? "var(--bad)" : socPct <= 35 ? "var(--warn)" : "var(--good)");
+    var w = b.voltageV * b.currentA;
+    setVal("power", fmt(Math.abs(w), 0), "W");
+    // Signo por confirmar con la batería descargando (ver docs/protocolo_bms.md).
+    $("flow").textContent = Math.abs(b.currentA) < 0.05 ? "En reposo" : (b.currentA > 0 ? "Signo +" : "Signo −") + " (por confirmar)";
+    setVal("current", fmt(b.currentA, 2), "A");
+    setVal("voltage", fmt(b.voltageV, 2), "V");
+    setVal("remaining", fmt(b.remainingAh, 1), "Ah");
+    $("energy").textContent = "≈ " + fmt(b.remainingAh * b.voltageV / 1000, 2) + " kWh";
+    $("soh").textContent = b.soh + " %";
+    $("cycles").textContent = b.cycles;
+    $("full").textContent = fmt(b.fullAh, 1) + " Ah";
+    $("tmos").textContent = fmt(b.tempMosC, 1) + " °C";
+    $("tamb").textContent = fmt(b.tempAmbientC, 1) + " °C";
+    $("time").textContent = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  function renderCells(c) {
+    last.cells = c;
+    var max = Math.max.apply(null, c.mv), min = Math.min.apply(null, c.mv);
+    var iMax = c.mv.indexOf(max), iMin = c.mv.indexOf(min);
+    var delta = max - min;
+    var color = delta <= 30 ? "var(--good)" : delta <= 80 ? "var(--warn)" : "var(--bad)";
+    $("delta").innerHTML = "Diferencia <b style='color:" + color + "'>" + delta + " mV</b>";
+    // Barra: escala útil de LiFePO4, 2,80 V (vacía) a 3,65 V (llena).
+    $("cells").innerHTML = c.mv.map(function (mv, i) {
+      var pct = Math.max(0, Math.min(100, (mv - 2800) / (3650 - 2800) * 100));
+      var cls = i === iMax ? "cell max" : i === iMin ? "cell min" : "cell";
+      return "<div class='" + cls + "'><label>Celda " + (i + 1) + "</label><b>" + mv + "</b>" +
+        "<div class='bar'><i style='width:" + pct.toFixed(0) + "%'></i></div></div>";
+    }).join("");
+    var temps = c.tempC.filter(function (t) { return t != null; });
+    $("tcells").textContent = temps.length ? temps.map(function (t) { return fmt(t, 1); }).join(" · ") + " °C" : "--";
+  }
+
+  window.bms = function (m) {
+    switch (m.type) {
+      case "state": setState(m.state, m.message); break;
+      case "basic": renderBasic(m); break;
+      case "cells": renderCells(m); break;
+      case "device": $("device").textContent = m.text; break;
+      case "status": $("statushex").textContent = m.hex; break;
+    }
+  };
+
+  $("btn").addEventListener("click", function () {
+    var busy = state === "connected" || state === "scanning" || state === "connecting" || state === "reconnecting";
+    if (hasBridge) {
+      if (busy) window.Android.disconnect(); else window.Android.connect();
+    } else if (webBle) {
+      if (busy) window.WebBle.disconnect(); else window.WebBle.connect();
+    } else {
+      demo();
+    }
+  });
+
+  // Tres motores: puente Java (APK), Web Bluetooth (Chrome) o demostración (navegador sin Bluetooth).
+  var webBle = !hasBridge && window.WebBle && window.WebBle.available;
+  if (hasBridge) {
+    $("ver").textContent = "v" + window.Android.version();
+  } else if (webBle) {
+    $("ver").textContent = "web";
+    setState("disconnected", "Versión web (Web Bluetooth). Cierra BMS tools y pulsa Conectar.");
+  } else {
+    $("ver").textContent = "demo";
+    setState("disconnected", "Este navegador no tiene Bluetooth. Pulsa Conectar para ver datos de ejemplo.");
+  }
+
+  // Datos de ejemplo de la lectura de referencia del 23-nov-2026, para ver la pantalla en el PC.
+  function demo() {
+    window.bms({ type: "state", state: "connected", message: "Demostración con la lectura de referencia del 23-nov-2026" });
+    window.bms({ type: "device", text: "P8S200A-41080-1.03 · P8S200A-41080-1.03-002 · 21887V130" });
+    window.bms({ type: "basic", currentA: 0, voltageV: 27.89, remainingAh: 279.94, fullAh: 280, designAh: 280,
+      soc: 100, soh: 100, cycles: 212, tempMosC: 30.2, tempAmbientC: 32.9 });
+    window.bms({ type: "cells", packVoltageV: 27.89, mv: [3473, 3486, 3490, 3480, 3474, 3489, 3489, 3488],
+      tempC: [30.1, 29.8, null, null, null, null, null, null] });
+    window.bms({ type: "status", hex: "02 00 80 04 06 00 00 00 00 00 00 00 00" });
+  }
+})();
+</script>
+</body>
+</html>
