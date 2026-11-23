@@ -48,8 +48,10 @@ Copy-Item -Recurse "$root\app\*" "$build\assets\www\"
 
 Write-Host "1/6 Recursos (aapt2)"
 Run "$BT\aapt2.exe" @("compile", "--dir", "$here\res", "-o", "$build\res.zip")
+# Sin -A: en Windows aapt2 guarda los assets con "\" (assets/www\index.html) y Android no los encuentra.
+# Los añadimos nosotros en el paso 4 con rutas "/".
 Run "$BT\aapt2.exe" @("link", "-o", "$build\base.apk", "-I", $AJ, "--manifest", "$here\AndroidManifest.xml",
-    "-A", "$build\assets", "--java", "$build\gen", "$build\res.zip")
+    "--java", "$build\gen", "$build\res.zip")
 
 Write-Host "2/6 Java (javac)"
 $sources = Get-ChildItem -Recurse "$here\src", "$build\gen" -Filter *.java | ForEach-Object { $_.FullName }
@@ -59,10 +61,15 @@ Write-Host "3/6 DEX (d8)"
 $classes = Get-ChildItem -Recurse "$build\obj" -Filter *.class | ForEach-Object { $_.FullName }
 Run "$BT\d8.bat" (@("--release", "--min-api", "24", "--lib", $AJ, "--output", "$build\dex") + $classes)
 
-Write-Host "4/6 Empaquetar classes.dex"
+Write-Host "4/6 Empaquetar classes.dex y la interfaz (assets/www)"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::Open("$build\base.apk", "Update")
 [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$build\dex\classes.dex", "classes.dex") | Out-Null
+$assetsRoot = "$build\assets"
+Get-ChildItem -Recurse -File $assetsRoot | ForEach-Object {
+    $rel = "assets/" + $_.FullName.Substring($assetsRoot.Length + 1).Replace('\', '/')
+    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $rel) | Out-Null
+}
 $zip.Dispose()
 
 Write-Host "5/6 Alinear (zipalign)"
