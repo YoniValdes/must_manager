@@ -50,7 +50,7 @@
   .eta .big { font-size: 46px; font-weight: 700; line-height: 1.1; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
   .eta .big small { font-size: 22px; color: var(--muted); font-weight: 600; margin: 0 6px 0 2px; }
   .eta .line { font-size: 15px; margin-top: 4px; }
-  .eta .line.muted { color: var(--muted); font-size: 13px; }
+  .eta .line.muted { color: var(--muted); font-size: 13px; white-space: pre-line; }
   .eta .verdict { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 15px; line-height: 1.4; }
   .eta .verdict b { font-variant-numeric: tabular-nums; }
   .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
@@ -171,6 +171,7 @@
   // ---------------------------------------------------------------- estimación de autonomía
   var CUTOFF_SOC = 15;          // ajuste 38 del inversor: corta la descarga al 15 % de SOC
   var SUNRISE = "07:00";        // amanecer aproximado (se hará configurable)
+  var SUNSET = "18:00";         // atardecer aproximado: de día el BMS ve consumo − sol (neto)
   var WINDOW_MS = 5 * 60 * 1000; // media de la corriente en los últimos 5 minutos
   var IDLE_A = 0.3;             // por debajo de esto se considera reposo
   var samples = [];             // [{t, a}]
@@ -191,6 +192,12 @@
     d.setHours(+p[0], +p[1], 0, 0);
     if (d <= now) d.setDate(d.getDate() + 1);
     return d;
+  }
+
+  function isDaytime(now) {
+    var mins = now.getHours() * 60 + now.getMinutes();
+    var r = SUNRISE.split(":"), s = SUNSET.split(":");
+    return mins >= +r[0] * 60 + +r[1] && mins < +s[0] * 60 + +s[1];
   }
 
   function renderEta(b) {
@@ -232,6 +239,10 @@
           verdict.innerHTML = "⚠️ Amanecer " + SUNRISE + ": <b>no llegas</b>, te faltan " + fmtDurationText(margin) +
             ".<br>Para llegar, baja el consumo a <b>" + fmt(maxW, 0) + " W</b> de media (ahora " + fmt(avgW, 0) + " W).";
         }
+      }
+      // El BMS solo ve el neto (sol + red − consumo): con sol, la descarga real de la casa es mayor.
+      if (isDaytime(new Date(now))) {
+        note += "\n☀️ Con sol, esta estimación ya descuenta lo que aportan los paneles: será fiable cuando anochezca.";
       }
     } else if (avgA >= IDLE_A) {
       var toFull = Math.max(0, b.fullAh - b.remainingAh) / avgA;
