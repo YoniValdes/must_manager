@@ -81,6 +81,9 @@
   .settings h2 { align-items: center; color: var(--text); font-size: 15px; margin-bottom: 0; }
   .set { display: grid; gap: 12px; margin-top: 14px; }
   .set label.row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.4; }
+  .set input[type=radio] { width: 20px; height: 20px; accent-color: var(--good); flex: none; margin-top: 1px; }
+  .set select { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  #eResult { font-size: 13px; line-height: 1.5; }
   .set input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--good); flex: none; margin-top: 1px; }
   .set input[type=number], .set input[type=time] { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 6px 8px; width: 84px; }
@@ -131,12 +134,37 @@
 <body>
 <header>
   <h1>Must Manager <small id="ver"></small></h1>
+  <button class="icon" id="exportBtn" title="Exportar datos" aria-label="Exportar datos" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+  </button>
   <button class="icon" id="bell" title="Alertas y ajustes" aria-label="Alertas y ajustes" aria-expanded="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
   </button>
   <button id="btn">Conectar</button>
 </header>
+
+<div class="card settings" id="exportCard" hidden>
+  <h2>Exportar datos <button class="icon close" id="eClose" aria-label="Cerrar">✕</button></h2>
+  <div class="set">
+    <div class="times">Periodo
+      <select id="eRange">
+        <option value="24">Últimas 24 horas</option>
+        <option value="168">Últimos 7 días</option>
+        <option value="720">Últimos 30 días</option>
+        <option value="0">Todo</option>
+      </select>
+      <span class="sub" id="eCount"></span></div>
+    <label class="row"><input type="radio" name="eFmt" value="xlsx" checked><span>Excel (.xlsx) <b>· recomendado</b>
+      <span class="sub"><br>Tres hojas: Lecturas (cada 10 s), Por hora y Estado del BMS. Números y fechas reales.</span></span></label>
+    <label class="row"><input type="radio" name="eFmt" value="csv"><span>CSV
+      <span class="sub"><br>Solo las lecturas, separadas por comas y con punto decimal.</span></span></label>
+    <div class="actions"><button id="eGo">Exportar</button>
+      <button class="secondary" id="eShare" hidden>Compartir</button></div>
+    <div class="sub" id="eResult"></div>
+  </div>
+</div>
 
 <div class="card settings" id="settingsCard" hidden>
   <h2>Alertas y ajustes <button class="icon close" id="sClose" aria-label="Cerrar">✕</button></h2>
@@ -675,16 +703,61 @@
       loadHistory();
     });
     $("sTest").addEventListener("click", function () { window.Android.testAlert(); });
-    var toggleSettings = function (open) {
-      $("settingsCard").hidden = !open;
-      $("bell").setAttribute("aria-expanded", String(open));
-      if (open) window.scrollTo({ top: 0, behavior: "smooth" });
-    };
-    $("bell").addEventListener("click", function () { toggleSettings($("settingsCard").hidden); });
-    $("sClose").addEventListener("click", function () { toggleSettings(false); });
+    $("bell").addEventListener("click", function () { togglePanel("settingsCard", "bell"); });
+    $("sClose").addEventListener("click", function () { togglePanel("settingsCard", "bell", false); });
   } else {
     // Sin la APK no hay alertas (no hay servicio que vigile en segundo plano).
     $("bell").hidden = true;
+  }
+
+  // Paneles de la cabecera (exportar y ajustes): solo uno abierto a la vez.
+  function togglePanel(cardId, btnId, force) {
+    var open = typeof force === "boolean" ? force : $(cardId).hidden;
+    [["exportCard", "exportBtn"], ["settingsCard", "bell"]].forEach(function (p) {
+      $(p[0]).hidden = true;
+      $(p[1]).setAttribute("aria-expanded", "false");
+    });
+    $(cardId).hidden = !open;
+    $(btnId).setAttribute("aria-expanded", String(open));
+    if (open) window.scrollTo({ top: 0, behavior: "smooth" });
+    if (open && cardId === "exportCard") updateExportCount();
+  }
+
+  // ---------------------------------------------------------------- exportar (solo APK)
+  var hasExport = hasBridge && typeof window.Android.exportData === "function";
+  function exportRange() {
+    var h = +$("eRange").value, now = Date.now();
+    return { from: h ? now - h * HOUR : 0, to: now + BUCKET };
+  }
+  function updateExportCount() {
+    var r = exportRange(), n = window.Android.countReadings(r.from, r.to);
+    $("eCount").textContent = n ? n.toLocaleString("es") + " lecturas" : "sin lecturas en este periodo";
+    $("eGo").disabled = !n;
+  }
+  if (hasExport) {
+    $("exportBtn").addEventListener("click", function () { togglePanel("exportCard", "exportBtn"); });
+    $("eClose").addEventListener("click", function () { togglePanel("exportCard", "exportBtn", false); });
+    $("eRange").addEventListener("change", updateExportCount);
+    $("eGo").addEventListener("click", function () {
+      var r = exportRange(), fmt = document.querySelector("input[name=eFmt]:checked").value;
+      $("eGo").disabled = true;
+      $("eShare").hidden = true;
+      $("eResult").textContent = "Exportando…";
+      window.Android.exportData(r.from, r.to, fmt);
+    });
+    $("eShare").addEventListener("click", function () { window.Android.shareExport(); });
+    window.bmsExportDone = function (res) {
+      $("eGo").disabled = false;
+      if (res.ok) {
+        $("eResult").innerHTML = "✔ Guardado <b>" + esc(res.name) + "</b> (" + res.rows.toLocaleString("es") +
+          " lecturas)<br>en <b>" + esc(res.location) + "</b>";
+        $("eShare").hidden = !res.canShare;
+      } else {
+        $("eResult").textContent = "⛔ No se pudo exportar: " + res.error;
+      }
+    };
+  } else {
+    $("exportBtn").hidden = true;
   }
 
   // El historial se lee de la base de datos de la app: al abrir y cada minuto (también desconectado: son datos pasados).

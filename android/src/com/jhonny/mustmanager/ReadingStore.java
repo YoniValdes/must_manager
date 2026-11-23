@@ -97,6 +97,16 @@ public final class ReadingStore extends SQLiteOpenHelper {
         getWritableDatabase().insertWithOnConflict("readings", null, v, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
+    public int count(long from, long to) {
+        Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM readings WHERE ts >= ? AND ts < ?",
+            new String[]{Long.toString(from), Long.toString(to)});
+        try {
+            return c.moveToFirst() ? c.getInt(0) : 0;
+        } finally {
+            c.close();
+        }
+    }
+
     /**
      * Historial agrupado en intervalos de bucketMs, como JSON:
      * [[t, soc, w_media, wh_descarga, wh_carga, delta_max, w_min, w_max], ...]

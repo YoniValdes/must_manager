@@ -33,6 +33,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     private WebView web;
     private MonitorService service;
     private boolean pageReady;
+    private volatile Exporter.Result lastExport;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -156,6 +157,56 @@ public class MainActivity extends Activity implements BmsClient.Listener {
                     if (service != null) service.testAlert();
                 }
             });
+        }
+
+        /** Exporta en segundo plano; al terminar llama a window.bmsExportDone({ok, name, location, rows, error}). */
+        @JavascriptInterface
+        public void exportData(final double from, final double to, final String format) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final JSONObject res = new JSONObject();
+                    try {
+                        Exporter.Result r = Exporter.export(MainActivity.this, (long) from, (long) to, "xlsx".equals(format));
+                        lastExport = r;
+                        res.put("ok", true).put("name", r.name).put("location", r.location).put("rows", r.rows)
+                            .put("canShare", r.uri != null);
+                    } catch (Exception e) {
+                        try {
+                            res.put("ok", false).put("error", String.valueOf(e.getMessage()));
+                        } catch (JSONException ignored) {
+                        }
+                    }
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (pageReady) web.evaluateJavascript("window.bmsExportDone && window.bmsExportDone(" + res + ")", null);
+                        }
+                    });
+                }
+            }, "exportar").start();
+        }
+
+        /** Abre el menú de compartir de Android con el último archivo exportado. */
+        @JavascriptInterface
+        public void shareExport() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Exporter.Result r = lastExport;
+                    if (r == null || r.uri == null) return;
+                    Intent send = new Intent(Intent.ACTION_SEND).setType(r.mime)
+                        .putExtra(Intent.EXTRA_STREAM, r.uri)
+                        .putExtra(Intent.EXTRA_SUBJECT, r.name)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(send, "Compartir " + r.name));
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public int countReadings(double from, double to) {
+            return ReadingStore.get(MainActivity.this).count((long) from, (long) to);
         }
 
         /** Historial agrupado (ver ReadingStore.buckets). Los números de JS llegan como double. */
