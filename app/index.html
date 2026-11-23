@@ -165,6 +165,22 @@
   .tile b { font-size: 24px; font-variant-numeric: tabular-nums; }
   .tile b small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 2px; }
   .tile .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  /* KPIs: centrados, grandes y con el color de su estado (siempre acompañado del texto de abajo) */
+  .tile.kpi { text-align: center; padding: 14px 12px 12px; display: flex; flex-direction: column; justify-content: center; }
+  .tile.kpi label { font-size: 13px; letter-spacing: .3px; }
+  .tile.kpi b { font-size: 36px; font-weight: 800; line-height: 1.15; margin: 2px 0; }
+  .tile.kpi b small { font-size: 16px; }
+  .tile.kpi .sub { font-size: 13px; }
+  .tile.kpi[data-st="good"] { --st: #4ade80; }
+  .tile.kpi[data-st="warn"] { --st: #fbbf24; }
+  .tile.kpi[data-st="bad"] { --st: #f87171; }
+  .tile.kpi[data-st="charge"] { --st: #38bdf8; }
+  .tile.kpi[data-st] b, .tile.kpi[data-st] .sub { color: var(--st); }
+  .tile.kpi[data-st] b small { color: inherit; opacity: .75; }
+  body.neon .tile.kpi[data-st] b { color: #fff; text-shadow: 0 0 2px #fff, 0 0 8px var(--st), 0 0 18px var(--st), 0 0 32px var(--st); }
+  body.neon .tile.kpi[data-st] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st) 35%, transparent),
+    0 0 16px -6px var(--st); }
+  body.hc .tile.kpi[data-st] { border: 2px solid var(--st); }
 
   h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
   h2 .badge { margin-left: auto; font-size: 13px; color: var(--text); }
@@ -319,10 +335,10 @@
     </div>
   </div>
   <div class="card tiles">
-    <div class="tile"><label>Potencia</label><b id="power">--<small>W</small></b><div class="sub" id="flow">&nbsp;</div></div>
-    <div class="tile"><label>Corriente</label><b id="current">--<small>A</small></b><div class="sub">&nbsp;</div></div>
-    <div class="tile"><label>Voltaje</label><b id="voltage">--<small>V</small></b><div class="sub">&nbsp;</div></div>
-    <div class="tile"><label>Restante</label><b id="remaining">--<small>Ah</small></b><div class="sub" id="energy">&nbsp;</div></div>
+    <div class="tile kpi" id="kPower"><label>Potencia</label><b id="power">--<small>W</small></b><div class="sub" id="flow">&nbsp;</div></div>
+    <div class="tile kpi" id="kCurrent"><label>Corriente</label><b id="current">--<small>A</small></b><div class="sub" id="currentSub">&nbsp;</div></div>
+    <div class="tile kpi" id="kVoltage"><label>Voltaje</label><b id="voltage">--<small>V</small></b><div class="sub" id="voltageSub">&nbsp;</div></div>
+    <div class="tile kpi" id="kRemaining"><label>Restante</label><b id="remaining">--<small>Ah</small></b><div class="sub" id="energy">&nbsp;</div></div>
   </div>
 </div>
 
@@ -481,6 +497,43 @@
     }
     $("etaNote").textContent = note;
     $("etaNote").hidden = false;
+    // Para los KPIs: consumo medio máximo que permite llegar al próximo amanecer.
+    var hToSunrise = (nextSunrise(new Date(now)) - now) / 3600000;
+    return { usableAh: usableAh, maxW: usableAh > 0 ? usableAh * b.voltageV / hToSunrise : 0 };
+  }
+
+  // ---------------------------------------------------------------- color de estado de los KPIs
+  var settingsCache = { socWarn: 30, socCritical: 20 };
+  function setKpi(id, st, subId, text) {
+    var el = $(id);
+    if (st) el.dataset.st = st; else delete el.dataset.st;
+    if (subId) $(subId).textContent = text || " ";
+  }
+  function renderKpis(b, eta) {
+    var w = b.voltageV * b.currentA, a = b.currentA;
+    // Potencia y corriente: comparadas con el consumo máximo para llegar al amanecer.
+    var st, txt;
+    if (a >= IDLE_A) { st = "charge"; txt = "Cargando"; }
+    else if (a > -IDLE_A) { st = null; txt = "En reposo"; }
+    else if (eta.usableAh <= 0) { st = "bad"; txt = "Batería en el límite"; }
+    else {
+      var used = -w, max = eta.maxW;
+      st = used > max ? "bad" : used > max * 0.9 ? "warn" : "good";
+      txt = (st === "bad" ? "No llegas · máx. " : "Para llegar: máx. ") + fmt(max, 0) + " W";
+    }
+    setKpi("kPower", st, "flow", txt);
+    setKpi("kCurrent", st, "currentSub", st === "charge" ? "Entrando" : st ? "Saliendo" : " ");
+    // Voltaje del pack (8 celdas LiFePO4): 3,0 / 3,1 / 3,55 / 3,6 V por celda.
+    var v = b.voltageV, vs, vt;
+    if (v < 24.0) { vs = "bad"; vt = "Muy bajo"; }
+    else if (v < 24.8) { vs = "warn"; vt = "Bajo"; }
+    else if (v > 28.8) { vs = "bad"; vt = "Muy alto"; }
+    else if (v > 28.4) { vs = "warn"; vt = "Alto"; }
+    else { vs = "good"; vt = "Normal · " + fmt(v / 8, 2) + " V/celda"; }
+    setKpi("kVoltage", vs, "voltageSub", vt);
+    // Restante: con los umbrales de las alertas de batería baja.
+    var rs = b.soc <= settingsCache.socCritical ? "bad" : b.soc <= settingsCache.socWarn ? "warn" : "good";
+    setKpi("kRemaining", rs, null);
   }
 
   // ---------------------------------------------------------------- cielo de la tarjeta de autonomía
@@ -615,9 +668,8 @@
     ["power", "current", "voltage", "remaining"].forEach(function (id, i) {
       setVal(id, "--", ["W", "A", "V", "Ah"][i]);
     });
-    $("flow").innerHTML = "&nbsp;";
-    $("flow").style.color = "";
-    $("energy").innerHTML = "&nbsp;";
+    ["kPower", "kCurrent", "kVoltage", "kRemaining"].forEach(function (id) { delete $(id).dataset.st; });
+    ["flow", "currentSub", "voltageSub", "energy"].forEach(function (id) { $(id).innerHTML = "&nbsp;"; });
     $("delta").innerHTML = "";
     $("cells").innerHTML = "<div class='empty' style='grid-column:1/-1'>Sin datos: no estás conectado</div>";
     ["soh", "cycles", "full", "tcells", "tmos", "tamb", "device", "serial", "statushex",
@@ -664,9 +716,6 @@
     var w = b.voltageV * b.currentA;
     setVal("power", fmt(Math.abs(w), 0), "W");
     // Corriente negativa = descarga (la casa consume de la batería); positiva = carga (sol o red).
-    var flow = Math.abs(b.currentA) < 0.05 ? "En reposo" : b.currentA < 0 ? "Descargando" : "Cargando";
-    $("flow").textContent = flow;
-    $("flow").style.color = flow === "Cargando" ? "var(--charge)" : flow === "Descargando" ? "var(--warn)" : "";
     setVal("current", fmt(b.currentA, 2), "A");
     setVal("voltage", fmt(b.voltageV, 2), "V");
     setVal("remaining", fmt(b.remainingAh, 1), "Ah");
@@ -677,7 +726,7 @@
     $("tmos").textContent = fmt(b.tempMosC, 1) + " °C";
     $("tamb").textContent = fmt(b.tempAmbientC, 1) + " °C";
     $("time").textContent = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    renderEta(b);
+    renderKpis(b, renderEta(b));
   }
 
   function renderCells(c) {
@@ -728,7 +777,9 @@
     document.body.classList.toggle("hc", theme.hc);
     $("neonT").setAttribute("aria-pressed", String(theme.neon));
     $("hcT").setAttribute("aria-pressed", String(theme.hc));
-    try { localStorage.setItem("mm-theme", JSON.stringify(theme)); } catch (e) { /* sin almacenamiento: no se recuerda */ }
+    if (!themeTest) {
+      try { localStorage.setItem("mm-theme", JSON.stringify(theme)); } catch (e) { /* sin almacenamiento: no se recuerda */ }
+    }
   }
   function renderPalettes() {
     $("pals").innerHTML = PALETTES.map(function (p) {
@@ -752,12 +803,12 @@
     var saved = JSON.parse(localStorage.getItem("mm-theme") || "null");
     if (saved) theme = { id: saved.id || "original", neon: saved.neon !== false, hc: !!saved.hc };
   } catch (e) { /* por defecto */ }
-  // Pruebas de diseño en el navegador: ?tema=coral&neon=0&hc=1&panel=tema
+  // Pruebas de diseño en el navegador: ?tema=coral&neon=0&hc=1&panel=tema (no se guardan como preferencia)
+  var themeTest = /[?&](tema|neon|hc)=/.test(location.search);
   (function () {
     var q = location.search, m = q.match(/[?&]tema=(\w+)/);
     if (m) theme.id = m[1];
-    if (/[?&]neon=0/.test(q)) theme.neon = false;
-    if (/[?&]hc=1/.test(q)) theme.hc = true;
+    if (themeTest) { theme.neon = !/[?&]neon=0/.test(q); theme.hc = /[?&]hc=1/.test(q); }
     if (/[?&]panel=tema/.test(q)) setTimeout(function () { renderPalettes(); togglePanel("themeCard", "themeBtn", true); }, 0);
   })();
   applyTheme();
@@ -777,7 +828,9 @@
   }
   function sum(rows, i) { return rows.reduce(function (s, r) { return s + (r[i] || 0); }, 0); }
 
+  var demoHistory = null; // en la demo del navegador: historial simulado
   function loadHistory() {
+    if (demoHistory) { renderNight(demoHistory, Date.now()); renderChart(demoHistory, Date.now()); return; }
     if (!hasHistory) {
       $("chartCard").hidden = true;
       $("histHint").textContent = "El historial y las gráficas solo están en la app (APK), que sigue grabando con la pantalla apagada.";
@@ -833,8 +886,8 @@
     }
     // Con pocos datos, 24 h los dejaría en un hilo en el borde: se muestran las últimas 3 h hasta tener más.
     var recent = rows.filter(function (r) { return r[0] >= now - 24 * HOUR; });
-    var hours = recent.length && now - recent[0][0] < 3 * HOUR ? 3 : 24;
-    $("chartTitle").textContent = "Últimas " + hours + " horas";
+    var hours = recent.length && now - recent[0][0] <= 3 * HOUR + 2 * BUCKET ? 3 : 24;
+    $("chartTitle").textContent = "Batería y consumo · últimas " + hours + " horas";
     var from = now - hours * HOUR, soc = [], pw = [], prev = null;
     rows.forEach(function (r) {
       if (r[0] < from) return;
@@ -847,7 +900,8 @@
     // Colores de ejes y fondo de la paleta activa; con neón, las líneas brillan.
     var css = getComputedStyle(document.documentElement);
     var muted = css.getPropertyValue("--muted").trim() || "#8b98a5", grid = css.getPropertyValue("--line").trim() || "#26313a";
-    var glow = theme.neon ? { shadowBlur: 10 } : { shadowBlur: 0 };
+    var glow = theme.neon ? { shadowBlur: 18 } : { shadowBlur: 0 };
+    var panelTitle = { color: muted, fontSize: 12, fontWeight: 600 };
     chart.setOption({
       animation: false,
       textStyle: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" },
@@ -858,16 +912,24 @@
         formatter: function (ps) {
           if (!ps.length) return "";
           var out = fmtClock(new Date(ps[0].value[0]));
+          // Series: 0 = SOC, 1 = carga (≥ 0), 2 = consumo (≤ 0), 3 = línea del cero.
+          var w = null;
           ps.forEach(function (p) {
             var v = p.value[1];
             if (v == null) return;
             if (p.seriesIndex === 0) out += "<br>SOC " + Math.round(v) + " %";
-            else out += "<br>" + (Math.abs(v) < 8 ? "En reposo" : (v < 0 ? "Descargando " : "Cargando ") + Math.round(Math.abs(v)) + " W");
+            else if (p.seriesIndex === 1 || p.seriesIndex === 2) w = (w || 0) + v;
           });
+          if (w !== null) out += "<br>" + (Math.abs(w) < 8 ? "En reposo" : (w < 0 ? "Consumo " : "Carga ") + Math.round(Math.abs(w)) + " W");
           return out;
         }
       },
-      grid: [{ left: 48, right: 12, top: 10, height: "34%" }, { left: 48, right: 12, top: "50%", bottom: 26 }],
+      // Un rótulo por panel para que se entienda qué es cada uno.
+      title: [
+        { text: "Nivel de carga (SOC %)", left: 48, top: 0, textStyle: panelTitle },
+        { text: "Potencia (W):  ↑ entra · carga     ↓ sale · consumo", left: 48, top: "48%", textStyle: panelTitle }
+      ],
+      grid: [{ left: 48, right: 12, top: 24, height: "30%" }, { left: 48, right: 12, top: "57%", bottom: 26 }],
       xAxis: [
         { type: "time", gridIndex: 0, min: from, max: now, axisLabel: { show: false }, axisTick: { show: false },
           axisLine: { lineStyle: { color: grid } }, splitLine: { show: false } },
@@ -879,14 +941,22 @@
           splitLine: { lineStyle: { color: grid } } },
         { type: "value", gridIndex: 1, axisLabel: { color: muted, formatter: "{value} W" }, splitLine: { lineStyle: { color: grid } } }
       ],
-      visualMap: { show: false, seriesIndex: 1, dimension: 1,
-        pieces: [{ lt: 0, color: COLOR_DISCHARGE }, { gte: 0, color: COLOR_CHARGE }] },
+      // Potencia en dos series (carga ≥ 0 en azul, consumo ≤ 0 en ámbar). Antes se coloreaba con visualMap,
+      // pero en esta versión de ECharts falla con varios paneles ("reading 'coord'") y no se dibujaba nada.
       series: [
         { name: "SOC", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: soc, showSymbol: false, connectNulls: false,
           lineStyle: Object.assign({ width: 2, color: COLOR_SOC, shadowColor: COLOR_SOC }, glow), itemStyle: { color: COLOR_SOC } },
-        { name: "Potencia", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: pw, showSymbol: false, connectNulls: false,
-          lineStyle: Object.assign({ width: 2, shadowColor: "rgba(255,255,255,0.35)" }, glow), areaStyle: { opacity: theme.neon ? 0.38 : 0.3 },
-          markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: muted, type: "solid", width: 1 }, data: [{ yAxis: 0 }] } }
+        { name: "Carga", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false,
+          data: pw.map(function (d) { return [d[0], d[1] == null ? null : Math.max(0, d[1])]; }),
+          lineStyle: Object.assign({ width: 2, color: COLOR_CHARGE, shadowColor: COLOR_CHARGE }, glow),
+          itemStyle: { color: COLOR_CHARGE }, areaStyle: { color: COLOR_CHARGE, opacity: theme.neon ? 0.35 : 0.25 } },
+        { name: "Consumo", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false,
+          data: pw.map(function (d) { return [d[0], d[1] == null ? null : Math.min(0, d[1])]; }),
+          lineStyle: Object.assign({ width: 2, color: COLOR_DISCHARGE, shadowColor: COLOR_DISCHARGE }, glow),
+          itemStyle: { color: COLOR_DISCHARGE }, areaStyle: { color: COLOR_DISCHARGE, opacity: theme.neon ? 0.35 : 0.25 } },
+        // Línea del cero (separa carga y consumo). Como serie simple: markLine fallaba con varios paneles.
+        { name: "cero", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: [[from, 0], [now, 0]], silent: true, symbol: "none",
+          lineStyle: { color: muted, width: 1, opacity: 0.6 }, tooltip: { show: false }, z: 1 }
       ]
     }, true);
   }
@@ -957,6 +1027,7 @@
   var hasSettings = hasBridge && typeof window.Android.getSettings === "function";
   function applySettings(s) {
     CUTOFF_SOC = s.cutoffSoc; SUNRISE = s.sunrise; SUNSET = s.sunset;
+    settingsCache = s;
     $("sSoc").checked = s.socAlerts; $("sSocWarn").value = s.socWarn; $("sSocCrit").value = s.socCritical;
     $("sGrid").checked = s.gridAlerts; $("sSunrise").checked = s.sunriseAlerts; $("sConn").checked = s.connAlerts;
     $("sRise").value = s.sunrise; $("sSet").value = s.sunset; $("sCut").value = s.cutoffSoc;
@@ -975,7 +1046,7 @@
       applySettings(JSON.parse(window.Android.setSettings(JSON.stringify(s))));
       $("sSaved").textContent = "Guardado ✓";
       setTimeout(function () { $("sSaved").textContent = ""; }, 2500);
-      if (last.basic) renderEta(last.basic);
+      if (last.basic) renderKpis(last.basic, renderEta(last.basic));
       loadHistory();
       updateSky();
       refreshBell();
@@ -1055,6 +1126,18 @@
     window.bms({ type: "cells", packVoltageV: 27.89, mv: [3473, 3486, 3490, 3480, 3474, 3489, 3489, 3488],
       tempC: [30.1, 29.8, null, null, null, null, null, null] });
     window.bms({ type: "status", hex: "02 00 80 04 06 00 00 00 00 00 00 00 00" });
+    // Historial simulado de 3 h (solo en la demo) para ver la gráfica y la tarjeta de la noche.
+    var now = Date.now(), rows = [], soc = 96, seed = 3;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var t = now - 3 * HOUR; t <= now; t += BUCKET) {
+      var k = (t - (now - 3 * HOUR)) / (3 * HOUR);
+      var w = k > 0.45 && k < 0.6 ? 950 + rnd() * 80 : -(380 + rnd() * 220 + (rnd() < 0.08 ? 600 : 0));
+      soc = Math.max(10, Math.min(100, soc + w / 280 / 26.5 / 60 * 100));
+      rows.push([t, soc, w, w < 0 ? -w / 60 : 0, w > 0 ? w / 60 : 0, 14, w, w]);
+    }
+    $("chartCard").hidden = false;
+    demoHistory = rows;
+    loadHistory();
   }
 })();
 </script>
