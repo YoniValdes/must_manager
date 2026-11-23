@@ -2,9 +2,14 @@ package com.jhonny.mustmanager;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -15,20 +20,37 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Pantalla principal: un WebView con app/index.html (la interfaz) y el puente con BmsClient (el Bluetooth).
+ * Pantalla principal: un WebView con app/index.html (la interfaz).
+ * El Bluetooth y el registro viven en MonitorService (siguen con la pantalla apagada);
+ * esta actividad se engancha al servicio y reenvía sus eventos a la página.
  * Java → página: window.bms({type: ..., ...})
- * Página → Java: Android.connect() (busca), Android.connectTo(dirección), Android.disconnect(), Android.version()
+ * Página → Java: Android.connect() (busca), Android.connectTo(dirección), Android.disconnect(),
+ *                Android.version(), Android.getHistory(desde, hasta, intervalo)
  */
 public class MainActivity extends Activity implements BmsClient.Listener {
 
     private static final int REQ_PERMS = 1;
     private WebView web;
-    private BmsClient bms;
+    private MonitorService service;
+    private boolean pageReady;
+
+    private final ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder binder) {
+            service = ((MonitorService.LocalBinder) binder).get();
+            attach();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            service = null;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Mientras la app está abierta la pantalla no se apaga: es un monitor.
+        // Mientras la app está en pantalla, la pantalla no se apaga: es un monitor.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         WebView.setWebContentsDebuggingEnabled(true);
@@ -36,18 +58,31 @@ public class MainActivity extends Activity implements BmsClient.Listener {
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                pageReady = true;
+                attach();
+            }
+        });
         web.setBackgroundColor(0xFF0F1418);
         web.addJavascriptInterface(new Bridge(), "Android");
         setContentView(web);
         web.loadUrl("file:///android_asset/www/index.html");
 
-        bms = new BmsClient(this, this);
+        bindService(new Intent(this, MonitorService.class), connection, Context.BIND_AUTO_CREATE);
+    }
+
+    /** Cuando la página y el servicio están listos, el servicio repinta el estado actual. */
+    private void attach() {
+        if (service != null && pageReady) service.setUi(this);
     }
 
     @Override
     protected void onDestroy() {
-        bms.stop();
+        // Cerrar la pantalla NO detiene la monitorización: eso solo lo hace "Desconectar".
+        if (service != null) service.setUi(null);
+        unbindService(connection);
         web.destroy();
         super.onDestroy();
     }
@@ -60,10 +95,10 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if (hasPermissions()) {
-                        bms.discover();
-                    } else {
-                        requestPermissions(neededPermissions(), REQ_PERMS);
+                    if (!hasPermissions()) {
+                        requestPermissions(requestedPermissions(), REQ_PERMS);
+                    } else if (service != null) {
+                        service.discover();
                     }
                 }
             });
@@ -74,7 +109,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if (hasPermissions()) bms.connectTo(address);
+                    if (hasPermissions() && service != null) service.connectTo(address);
                 }
             });
         }
@@ -84,7 +119,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    bms.stop();
+                    if (service != null) service.stopMonitoring();
                 }
             });
         }
@@ -97,15 +132,32 @@ public class MainActivity extends Activity implements BmsClient.Listener {
                 return "?";
             }
         }
+
+        /** Historial agrupado (ver ReadingStore.buckets). Los números de JS llegan como double. */
+        @JavascriptInterface
+        public String getHistory(double from, double to, double bucketMs) {
+            return ReadingStore.get(MainActivity.this).buckets((long) from, (long) to, (long) bucketMs);
+        }
     }
 
     // ------------------------------------------------------------------ permisos
 
+    /** Imprescindibles: Bluetooth. */
     private String[] neededPermissions() {
         if (Build.VERSION.SDK_INT >= 31) {
             return new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT};
         }
         return new String[]{Manifest.permission.ACCESS_FINE_LOCATION};
+    }
+
+    /** Lo que se pide: Bluetooth + notificaciones (opcional: sin él se monitoriza igual, sin notificación visible). */
+    private String[] requestedPermissions() {
+        String[] base = neededPermissions();
+        if (Build.VERSION.SDK_INT < 33) return base;
+        String[] all = new String[base.length + 1];
+        System.arraycopy(base, 0, all, 0, base.length);
+        all[base.length] = Manifest.permission.POST_NOTIFICATIONS;
+        return all;
     }
 
     private boolean hasPermissions() {
@@ -119,17 +171,17 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         if (requestCode != REQ_PERMS) return;
         if (hasPermissions()) {
-            bms.discover();
+            if (service != null) service.discover();
         } else {
             onState("error", "Sin el permiso de \"Dispositivos cercanos\" no puedo conectar con el BMS. "
                 + "Actívalo en Ajustes → Aplicaciones → Must Manager → Permisos.");
         }
     }
 
-    // ------------------------------------------------------------------ BmsClient → página
+    // ------------------------------------------------------------------ eventos → página
 
     private void send(JSONObject msg) {
-        web.evaluateJavascript("window.bms && window.bms(" + msg.toString() + ")", null);
+        if (pageReady) web.evaluateJavascript("window.bms && window.bms(" + msg.toString() + ")", null);
     }
 
     private static Object num(double v) {

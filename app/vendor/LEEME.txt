@@ -1,0 +1,1 @@
+echarts.min.js 5.6.1 (Apache License 2.0, https://echarts.apache.org) copiado del proyecto analitica. Local para funcionar sin internet.

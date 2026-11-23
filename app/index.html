@@ -67,6 +67,12 @@
   .eta .line.muted { color: var(--muted); font-size: 13px; white-space: pre-line; }
   .eta .verdict { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 15px; line-height: 1.4; }
   .eta .verdict b { font-variant-numeric: tabular-nums; }
+  .night { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 640px) { .night { grid-template-columns: repeat(2, 1fr); } }
+  .night .tile b { font-size: 22px; }
+  .chart { width: 100%; height: 380px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   .hero { display: grid; grid-template-columns: 170px 1fr; gap: 14px; margin-bottom: 14px; }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
@@ -148,6 +154,25 @@
   </div>
 </div>
 
+<div class="card" id="nightCard" style="margin-bottom:14px">
+  <h2><span id="nightTitle">Esta noche</span> <span class="badge" id="nightRange"></span></h2>
+  <div class="night">
+    <div class="tile"><label>Energía gastada</label><b id="nKwh">--<small>kWh</small></b><div class="sub" id="nSoc">&nbsp;</div></div>
+    <div class="tile"><label>Consumo medio</label><b id="nAvg">--<small>W</small></b><div class="sub" id="nCover">&nbsp;</div></div>
+    <div class="tile"><label>Pico de consumo</label><b id="nPeak">--<small>W</small></b><div class="sub" id="nPeakAt">&nbsp;</div></div>
+    <div class="tile"><label>Hoy desde las 00:00</label><b id="tIn">--<small>kWh</small></b><div class="sub" id="tOut">&nbsp;</div></div>
+  </div>
+  <p class="hint" id="histHint" style="margin:10px 0 0"></p>
+</div>
+
+<div class="card" id="chartCard" style="margin-bottom:14px">
+  <h2>Últimas 24 horas</h2>
+  <div class="legend"><span><i style="background:#16a34a"></i>SOC (%)</span>
+    <span><i style="background:#0284c7"></i>Cargando (por encima de 0)</span>
+    <span><i style="background:#d97706"></i>Descargando (por debajo de 0)</span></div>
+  <div class="chart" id="chart"></div>
+</div>
+
 <div class="card">
   <h2>Celdas <span class="badge" id="delta"></span></h2>
   <div class="cells" id="cells"><div class="empty" style="grid-column:1/-1">Sin datos todavía</div></div>
@@ -178,6 +203,7 @@
 <p class="hint">Prototipo de solo lectura: la app únicamente envía preguntas de consulta al BMS, nunca cambia su configuración.
   El BMS admite una sola conexión: pulsa <b>Desconectar</b> antes de abrir BMS tools.</p>
 
+<script src="vendor/echarts.min.js"></script>
 <script src="webble.js"></script>
 <script>
 (function () {
@@ -388,6 +414,127 @@
     $("tcells").textContent = temps.length ? temps.map(function (t) { return fmt(t, 1); }).join(" · ") + " °C" : "--";
   }
 
+  // ---------------------------------------------------------------- historial (solo APK)
+  // Filas de Android.getHistory: [t, soc, w_media, wh_descarga, wh_carga, delta_max, w_min, w_max] por minuto.
+  var hasHistory = hasBridge && typeof window.Android.getHistory === "function";
+  var HOUR = 3600000, BUCKET = 60000, GAP_MS = 3 * 60000;
+  var COLOR_SOC = "#16a34a", COLOR_CHARGE = "#0284c7", COLOR_DISCHARGE = "#d97706";
+  var chart = null;
+
+  function at(dayOffset, hhmm) {
+    var p = hhmm.split(":"), d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(+p[0], +p[1], 0, 0);
+    return d.getTime();
+  }
+  function sum(rows, i) { return rows.reduce(function (s, r) { return s + (r[i] || 0); }, 0); }
+
+  function loadHistory() {
+    if (!hasHistory) {
+      $("chartCard").hidden = true;
+      $("histHint").textContent = "El historial y las gráficas solo están en la app (APK), que sigue grabando con la pantalla apagada.";
+      return;
+    }
+    var now = Date.now(), rows;
+    try {
+      rows = JSON.parse(window.Android.getHistory(now - 36 * HOUR, now + BUCKET, BUCKET));
+    } catch (e) {
+      return;
+    }
+    renderNight(rows, now);
+    renderChart(rows, now);
+  }
+
+  function renderNight(rows, now) {
+    var sunsetToday = at(0, SUNSET), sunriseToday = at(0, SUNRISE), start, end, title;
+    if (now >= sunsetToday) { start = sunsetToday; end = now; title = "Esta noche"; }
+    else if (now < sunriseToday) { start = at(-1, SUNSET); end = now; title = "Esta noche"; }
+    else { start = at(-1, SUNSET); end = sunriseToday; title = "Anoche"; }
+    var night = rows.filter(function (r) { return r[0] >= start && r[0] < end; });
+    $("nightTitle").textContent = title;
+    $("nightRange").textContent = fmtClock(new Date(start)) + " – " + (end === now ? "ahora" : fmtClock(new Date(end)));
+
+    if (!night.length) {
+      setVal("nKwh", "--", "kWh"); setVal("nAvg", "--", "W"); setVal("nPeak", "--", "W");
+      $("nSoc").innerHTML = $("nCover").innerHTML = $("nPeakAt").innerHTML = "&nbsp;";
+      $("histHint").textContent = "Todavía no hay lecturas grabadas de " + title.toLowerCase() +
+        ". La app graba una cada 10 s mientras está conectada, también con la pantalla apagada.";
+    } else {
+      var disWh = sum(night, 3);
+      var disMinutes = night.filter(function (r) { return r[3] > 0; }).length;
+      var peak = night.reduce(function (p, r) { return r[6] < p.w ? { w: r[6], t: r[0] } : p; }, { w: 0, t: 0 });
+      setVal("nKwh", fmt(disWh / 1000, 2), "kWh");
+      $("nSoc").textContent = "SOC " + Math.round(night[0][1]) + " % → " + Math.round(night[night.length - 1][1]) + " %";
+      setVal("nAvg", disMinutes ? fmt(disWh / (disMinutes / 60), 0) : "--", "W");
+      $("nCover").textContent = "con datos de " + fmtDurationText(night.length / 60) + " de " + fmtDurationText((end - start) / HOUR);
+      setVal("nPeak", peak.w < 0 ? fmt(-peak.w, 0) : "--", "W");
+      $("nPeakAt").textContent = peak.w < 0 ? "media de 1 min, a las " + fmtClock(new Date(peak.t)) : " ";
+      $("histHint").textContent = "";
+    }
+
+    var today = rows.filter(function (r) { return r[0] >= at(0, "00:00"); });
+    setVal("tIn", today.length ? fmt(sum(today, 4) / 1000, 2) : "--", "kWh");
+    $("tOut").textContent = today.length ? "entró (sol + red) · salió " + fmt(sum(today, 3) / 1000, 2) + " kWh" : " ";
+  }
+
+  function renderChart(rows, now) {
+    if (!window.echarts) return;
+    if (!chart) {
+      chart = echarts.init($("chart"));
+      window.addEventListener("resize", function () { chart.resize(); });
+    }
+    var from = now - 24 * HOUR, soc = [], pw = [], prev = null;
+    rows.forEach(function (r) {
+      if (r[0] < from) return;
+      // Hueco sin datos (app desconectada): la línea se corta en vez de inventar un tramo recto.
+      if (prev !== null && r[0] - prev > GAP_MS) { soc.push([prev + BUCKET, null]); pw.push([prev + BUCKET, null]); }
+      soc.push([r[0], r[1]]);
+      pw.push([r[0], r[2]]);
+      prev = r[0];
+    });
+    var muted = "#8b98a5", grid = "#26313a";
+    chart.setOption({
+      animation: false,
+      textStyle: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" },
+      axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: muted } },
+      tooltip: {
+        trigger: "axis", backgroundColor: "#0f1418", borderColor: grid, textStyle: { color: "#e6edf3", fontSize: 12 },
+        formatter: function (ps) {
+          if (!ps.length) return "";
+          var out = fmtClock(new Date(ps[0].value[0]));
+          ps.forEach(function (p) {
+            var v = p.value[1];
+            if (v == null) return;
+            if (p.seriesIndex === 0) out += "<br>SOC " + Math.round(v) + " %";
+            else out += "<br>" + (Math.abs(v) < 8 ? "En reposo" : (v < 0 ? "Descargando " : "Cargando ") + Math.round(Math.abs(v)) + " W");
+          });
+          return out;
+        }
+      },
+      grid: [{ left: 48, right: 12, top: 10, height: "34%" }, { left: 48, right: 12, top: "50%", bottom: 26 }],
+      xAxis: [
+        { type: "time", gridIndex: 0, min: from, max: now, axisLabel: { show: false }, axisTick: { show: false },
+          axisLine: { lineStyle: { color: grid } }, splitLine: { show: false } },
+        { type: "time", gridIndex: 1, min: from, max: now, axisLabel: { color: muted, formatter: "{HH}:{mm}", hideOverlap: true },
+          axisLine: { lineStyle: { color: grid } }, splitLine: { show: false } }
+      ],
+      yAxis: [
+        { type: "value", gridIndex: 0, min: 0, max: 100, interval: 25, axisLabel: { color: muted, formatter: "{value} %" },
+          splitLine: { lineStyle: { color: grid } } },
+        { type: "value", gridIndex: 1, axisLabel: { color: muted, formatter: "{value} W" }, splitLine: { lineStyle: { color: grid } } }
+      ],
+      visualMap: { show: false, seriesIndex: 1, dimension: 1,
+        pieces: [{ lt: 0, color: COLOR_DISCHARGE }, { gte: 0, color: COLOR_CHARGE }] },
+      series: [
+        { name: "SOC", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: soc, showSymbol: false, connectNulls: false,
+          lineStyle: { width: 2, color: COLOR_SOC }, itemStyle: { color: COLOR_SOC } },
+        { name: "Potencia", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: pw, showSymbol: false, connectNulls: false,
+          lineStyle: { width: 2 }, areaStyle: { opacity: 0.3 },
+          markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: muted, type: "solid", width: 1 }, data: [{ yAxis: 0 }] } }
+      ]
+    }, true);
+  }
+
   window.bms = function (m) {
     switch (m.type) {
       case "state": setState(m.state, m.message); break;
@@ -426,6 +573,10 @@
     $("ver").textContent = "demo";
     setState("disconnected", "Este navegador no tiene Bluetooth. Pulsa Conectar para ver datos de ejemplo.");
   }
+
+  // El historial se lee de la base de datos de la app: al abrir y cada minuto (también desconectado: son datos pasados).
+  loadHistory();
+  setInterval(loadHistory, 60000);
 
   // Datos de ejemplo de la lectura de referencia del 23-nov-2026, para ver la pantalla en el PC.
   function demo() {

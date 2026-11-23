@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono de la notificación: silueta blanca de batería (Android la tiñe). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M9,2h6v2h2a1,1 0 0 1 1,1v16a1,1 0 0 1 -1,1h-10a1,1 0 0 1 -1,-1v-16a1,1 0 0 1 1,-1h2z M8,6v14h8v-14z M9,12h6v7h-6z"/>
+</vector>
