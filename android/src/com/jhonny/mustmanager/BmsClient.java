@@ -16,24 +16,32 @@ import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Conexión BLE con el BMS: busca, conecta, activa notificaciones y pregunta en bucle.
- * Todo se ejecuta en el hilo principal (los callbacks de BLE se reenvían con el Handler),
- * así no hay problemas de concurrencia.
+ * Conexión BLE con el BMS.
+ * 1) discover(): busca y avisa de cada BMS compatible encontrado (el usuario elige en la lista).
+ * 2) connectTo(dirección): conecta con el elegido, activa notificaciones y pregunta en bucle.
+ * Si se pierde la conexión, reintenta SOLO con ese mismo dispositivo.
+ * Todo se ejecuta en el hilo principal (los callbacks de BLE se reenvían con el Handler).
  */
 @SuppressLint("MissingPermission")
 public class BmsClient {
 
     public interface Listener {
-        /** state: scanning | connecting | connected | reconnecting | disconnected | error */
+        /** state: scanning | select | connecting | connected | reconnecting | disconnected | error */
         void onState(String state, String message);
+
+        /** BMS compatible encontrado durante la búsqueda. */
+        void onDeviceFound(String name, String address, int rssi, boolean lastUsed);
 
         /** key 0x0001 = versión de software/hardware; 0x0004 / 0x0005 = números de serie. */
         void onDeviceText(int key, String text);
@@ -50,7 +58,8 @@ public class BmsClient {
     private static final UUID WRITE = UUID.fromString(BmsProtocol.WRITE_UUID);
     private static final UUID CCCD = UUID.fromString(BmsProtocol.CCCD_UUID);
 
-    private static final long SCAN_TIMEOUT_MS = 15000;
+    private static final long DISCOVER_TIMEOUT_MS = 12000;
+    private static final long TARGET_SCAN_TIMEOUT_MS = 15000;
     private static final long CONNECT_TIMEOUT_MS = 15000;
     private static final long RESPONSE_TIMEOUT_MS = 2500;
     private static final long POLL_PERIOD_MS = 3000;
@@ -66,13 +75,21 @@ public class BmsClient {
     private final Listener listener;
     private final Handler h = new Handler(Looper.getMainLooper());
     private final BmsProtocol.Reassembler rx = new BmsProtocol.Reassembler();
+    private final SharedPreferences prefs;
+    private final Map<String, String> foundNames = new HashMap<String, String>();
 
     private BluetoothAdapter adapter;
     private BluetoothLeScanner scanner;
     private BluetoothGatt gatt;
     private BluetoothGattCharacteristic txChar;
+
+    /** true mientras hay una sesión activa con un dispositivo elegido (incluye reintentos). */
     private boolean running;
     private boolean scanning;
+    /** true = búsqueda para la lista; false = buscando al dispositivo elegido para reconectar. */
+    private boolean discoverMode;
+    private String targetAddress;
+    private String targetName;
     private boolean polling;
     private int cycleIndex;
     private boolean serialRequested;
@@ -83,29 +100,39 @@ public class BmsClient {
     public BmsClient(Context ctx, Listener listener) {
         this.ctx = ctx.getApplicationContext();
         this.listener = listener;
+        this.prefs = this.ctx.getSharedPreferences("mustmanager", Context.MODE_PRIVATE);
     }
 
-    public boolean isRunning() {
-        return running;
+    // ------------------------------------------------------------------ API pública
+
+    /** Busca BMS compatibles y los va enviando a la lista. No conecta con ninguno. */
+    public void discover() {
+        if (!ensureAdapter()) return;
+        running = false;
+        h.removeCallbacksAndMessages(null);
+        stopScan();
+        closeGatt();
+        foundNames.clear();
+        discoverMode = true;
+        if (startScan()) {
+            listener.onState("scanning", "Buscando dispositivos… Toca tu BMS en la lista.");
+            h.postDelayed(scanTimeout, DISCOVER_TIMEOUT_MS);
+        }
     }
 
-    // ------------------------------------------------------------------ inicio / parada
-
-    public void start() {
-        if (running) return;
-        BluetoothManager bm = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
-        adapter = bm == null ? null : bm.getAdapter();
-        if (adapter == null) {
-            listener.onState("error", "Este dispositivo no tiene Bluetooth.");
-            return;
-        }
-        if (!adapter.isEnabled()) {
-            listener.onState("error", "El Bluetooth está apagado. Enciéndelo y vuelve a pulsar Conectar.");
-            return;
-        }
+    /** Conecta con el dispositivo elegido por el usuario. */
+    public void connectTo(String address) {
+        if (!ensureAdapter()) return;
+        if (!BluetoothAdapter.checkBluetoothAddress(address)) return;
+        h.removeCallbacksAndMessages(null);
+        stopScan();
+        closeGatt();
+        targetAddress = address;
+        targetName = foundNames.containsKey(address) ? foundNames.get(address) : address;
+        prefs.edit().putString("lastAddress", address).apply();
         running = true;
         everGotData = false;
-        scan();
+        connect(adapter.getRemoteDevice(address));
     }
 
     public void stop() {
@@ -118,18 +145,30 @@ public class BmsClient {
 
     // ------------------------------------------------------------------ búsqueda
 
-    private void scan() {
-        if (!running) return;
+    private boolean ensureAdapter() {
+        BluetoothManager bm = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
+        adapter = bm == null ? null : bm.getAdapter();
+        if (adapter == null) {
+            listener.onState("error", "Este dispositivo no tiene Bluetooth.");
+            return false;
+        }
+        if (!adapter.isEnabled()) {
+            listener.onState("error", "El Bluetooth está apagado. Enciéndelo y vuelve a pulsar Conectar.");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean startScan() {
         scanner = adapter.getBluetoothLeScanner();
         if (scanner == null) {
             fail("No puedo buscar dispositivos. ¿Está encendido el Bluetooth?");
-            return;
+            return false;
         }
-        listener.onState("scanning", "Buscando el BMS…");
         ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
         scanning = true;
         scanner.startScan(null, settings, scanCallback);
-        h.postDelayed(scanTimeout, SCAN_TIMEOUT_MS);
+        return true;
     }
 
     private void stopScan() {
@@ -147,9 +186,17 @@ public class BmsClient {
         @Override
         public void run() {
             stopScan();
-            String extra = Build.VERSION.SDK_INT < 31 ? " En este Android también hace falta tener activada la Ubicación." : "";
-            fail("No encuentro el BMS. Acércate a la batería y comprueba que BMS tools está cerrada "
-                + "(el BMS solo admite una conexión a la vez)." + extra);
+            if (discoverMode) {
+                if (foundNames.isEmpty()) {
+                    String extra = Build.VERSION.SDK_INT < 31 ? " En este Android también hace falta tener activada la Ubicación." : "";
+                    listener.onState("error", "No encuentro ningún BMS. Acércate a la batería y comprueba que BMS tools "
+                        + "está cerrada (el BMS solo admite una conexión a la vez)." + extra);
+                } else {
+                    listener.onState("select", "Búsqueda terminada. Toca tu BMS en la lista.");
+                }
+            } else {
+                retryOrFail("No encuentro " + targetName + ".");
+            }
         }
     };
 
@@ -160,8 +207,16 @@ public class BmsClient {
                 @Override
                 public void run() {
                     if (!scanning || !looksLikeBms(result)) return;
-                    stopScan();
-                    connect(result.getDevice(), nameOf(result));
+                    String address = result.getDevice().getAddress();
+                    String name = nameOf(result);
+                    if (discoverMode) {
+                        foundNames.put(address, name != null ? name : address);
+                        String last = prefs.getString("lastAddress", null);
+                        listener.onDeviceFound(name, address, result.getRssi(), address.equals(last));
+                    } else if (address.equals(targetAddress)) {
+                        stopScan();
+                        connect(result.getDevice());
+                    }
                 }
             });
         }
@@ -204,8 +259,8 @@ public class BmsClient {
 
     // ------------------------------------------------------------------ conexión
 
-    private void connect(BluetoothDevice device, String name) {
-        listener.onState("connecting", "Conectando con " + (name != null ? name : device.getAddress()) + "…");
+    private void connect(BluetoothDevice device) {
+        listener.onState("connecting", "Conectando con " + targetName + "…");
         rx.reset();
         gatt = device.connectGatt(ctx, false, gattCallback, BluetoothDevice.TRANSPORT_LE);
         h.postDelayed(connectTimeout, CONNECT_TIMEOUT_MS);
@@ -215,7 +270,7 @@ public class BmsClient {
         @Override
         public void run() {
             closeGatt();
-            retryOrFail("El BMS no acepta la conexión. ¿Está BMS tools abierta en algún móvil o tablet?");
+            retryOrFail(targetName + " no acepta la conexión. ¿Está BMS tools abierta en algún móvil o tablet?");
         }
     };
 
@@ -241,13 +296,13 @@ public class BmsClient {
                 public void run() {
                     if (g != gatt) return;
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        listener.onState("connecting", "Conectado. Preparando la comunicación…");
+                        listener.onState("connecting", "Conectado a " + targetName + ". Preparando la comunicación…");
                         // Pedimos un MTU grande: así cada respuesta llega en una sola notificación.
                         if (!g.requestMtu(247)) g.discoverServices();
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         h.removeCallbacks(connectTimeout);
                         closeGatt();
-                        retryOrFail("Se perdió la conexión con el BMS.");
+                        retryOrFail("Se perdió la conexión con " + targetName + ".");
                     }
                 }
             });
@@ -303,7 +358,7 @@ public class BmsClient {
                         retryOrFail("El BMS no aceptó activar las notificaciones (estado " + status + ").");
                         return;
                     }
-                    listener.onState("connected", "Conectado. Leyendo datos…");
+                    listener.onState("connected", "Conectado a " + targetName + ". Leyendo datos…");
                     lastGoodFrameAt = System.currentTimeMillis();
                     polling = true;
                     cycleIndex = 0;
@@ -341,6 +396,7 @@ public class BmsClient {
         });
     }
 
+    /** Reintenta solo con el dispositivo elegido. Nunca salta a otro BMS. */
     private void retryOrFail(String message) {
         if (!running) return;
         stopScan();
@@ -352,7 +408,12 @@ public class BmsClient {
     private final Runnable retry = new Runnable() {
         @Override
         public void run() {
-            if (running && gatt == null) scan();
+            if (!running || gatt != null) return;
+            discoverMode = false;
+            if (startScan()) {
+                listener.onState("reconnecting", "Buscando " + targetName + "…");
+                h.postDelayed(scanTimeout, TARGET_SCAN_TIMEOUT_MS);
+            }
         }
     };
 
@@ -438,7 +499,7 @@ public class BmsClient {
             lastGoodFrameAt = System.currentTimeMillis();
             if (!everGotData && (f.key >> 8) == 0x0A) {
                 everGotData = true;
-                listener.onState("connected", "Conectado");
+                listener.onState("connected", "Conectado a " + targetName);
             }
         } catch (IllegalArgumentException e) {
             // Trama con CRC correcto pero contenido inesperado: puede ser otro firmware. No mostramos basura.

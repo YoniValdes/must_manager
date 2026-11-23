@@ -40,6 +40,18 @@
   @keyframes pulse { to { opacity: .3; } }
   .status .time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+  .picker { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .picker h2 { margin-bottom: 8px; }
+  .dev { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--bg);
+    color: var(--text); border-radius: 10px; padding: 12px 14px; margin-top: 8px; font-weight: 400; border: 1px solid var(--line); }
+  .dev:active { border-color: var(--good); }
+  .dev .name { font-weight: 700; font-size: 16px; }
+  .dev .addr { color: var(--muted); font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
+  .dev .tag { font-size: 11px; background: var(--good); color: #05210f; border-radius: 999px; padding: 2px 8px; margin-left: 6px; font-weight: 700; }
+  .dev .sig { margin-left: auto; display: flex; gap: 2px; align-items: flex-end; height: 16px; }
+  .dev .sig i { width: 4px; background: var(--line); border-radius: 1px; }
+  .dev .sig i.on { background: var(--good); }
+  .picker .none { color: var(--muted); font-size: 14px; padding: 8px 2px; }
   .eta { background: var(--card); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px;
     border-left: 6px solid var(--line); }
   .eta[data-level="good"] { border-left-color: var(--good); }
@@ -100,6 +112,11 @@
 <div class="status" id="status" data-state="disconnected">
   <span class="dot"></span><span id="msg">Pulsa Conectar. Recuerda cerrar BMS tools antes.</span>
   <span class="time" id="time"></span>
+</div>
+
+<div class="picker" id="picker" hidden>
+  <h2>Dispositivos encontrados</h2>
+  <div id="devices"><div class="none">Buscando…</div></div>
 </div>
 
 <div class="eta" id="eta" data-level="">
@@ -264,14 +281,37 @@
   function fmt(v, d) { return v == null || isNaN(v) ? "--" : Number(v).toFixed(d).replace(".", ","); }
   function setVal(id, text, unit) { $(id).innerHTML = text + (unit ? "<small>" + unit + "</small>" : ""); }
 
+  function isBusy(s) { return s === "connected" || s === "scanning" || s === "connecting" || s === "reconnecting"; }
+
   function setState(s, message) {
     state = s;
     $("status").dataset.state = s;
     if (message) $("msg").textContent = message;
-    var busy = s === "connected" || s === "scanning" || s === "connecting" || s === "reconnecting";
-    $("btn").textContent = busy ? "Desconectar" : "Conectar";
-    $("btn").className = busy ? "secondary" : "";
+    $("btn").textContent = s === "scanning" ? "Cancelar" : isBusy(s) ? "Desconectar" : "Conectar";
+    $("btn").className = isBusy(s) ? "secondary" : "";
+    // En la web la lista la pone Chrome; la nuestra es solo para la APK.
+    $("picker").hidden = !(hasBridge && (s === "scanning" || s === "select"));
   }
+
+  // ---------------------------------------------------------------- lista de dispositivos (APK)
+  var found = {};
+  function signalBars(rssi) { return rssi >= -60 ? 4 : rssi >= -70 ? 3 : rssi >= -80 ? 2 : 1; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function renderDevices() {
+    var list = Object.keys(found).map(function (k) { return found[k]; });
+    list.sort(function (a, b) { return (b.last - a.last) || (b.rssi - a.rssi); });
+    $("devices").innerHTML = list.length ? list.map(function (d) {
+      var bars = signalBars(d.rssi), sig = "";
+      for (var i = 1; i <= 4; i++) sig += "<i class='" + (i <= bars ? "on" : "") + "' style='height:" + (i * 4) + "px'></i>";
+      return "<button class='dev' data-addr='" + esc(d.address) + "'><div><div class='name'>" + esc(d.name || "Sin nombre") +
+        (d.last ? "<span class='tag'>último usado</span>" : "") + "</div><div class='addr'>" + esc(d.address) +
+        " · " + d.rssi + " dBm</div></div><span class='sig'>" + sig + "</span></button>";
+    }).join("") : "<div class='none'>Buscando…</div>";
+  }
+  $("devices").addEventListener("click", function (e) {
+    var b = e.target.closest(".dev");
+    if (b && hasBridge) window.Android.connectTo(b.dataset.addr);
+  });
 
   function renderBasic(b) {
     last.basic = b;
@@ -319,6 +359,7 @@
   window.bms = function (m) {
     switch (m.type) {
       case "state": setState(m.state, m.message); break;
+      case "found": found[m.address] = m; renderDevices(); break;
       case "basic": renderBasic(m); break;
       case "cells": renderCells(m); break;
       case "device":
@@ -331,9 +372,10 @@
   };
 
   $("btn").addEventListener("click", function () {
-    var busy = state === "connected" || state === "scanning" || state === "connecting" || state === "reconnecting";
+    var busy = isBusy(state);
     if (hasBridge) {
-      if (busy) window.Android.disconnect(); else window.Android.connect();
+      if (busy) { window.Android.disconnect(); }
+      else { found = {}; renderDevices(); window.Android.connect(); }
     } else if (webBle) {
       if (busy) window.WebBle.disconnect(); else window.WebBle.connect();
     } else {

@@ -17,7 +17,7 @@ import org.json.JSONObject;
 /**
  * Pantalla principal: un WebView con app/index.html (la interfaz) y el puente con BmsClient (el Bluetooth).
  * Java → página: window.bms({type: ..., ...})
- * Página → Java: Android.connect(), Android.disconnect(), Android.version()
+ * Página → Java: Android.connect() (busca), Android.connectTo(dirección), Android.disconnect(), Android.version()
  */
 public class MainActivity extends Activity implements BmsClient.Listener {
 
@@ -61,10 +61,20 @@ public class MainActivity extends Activity implements BmsClient.Listener {
                 @Override
                 public void run() {
                     if (hasPermissions()) {
-                        bms.start();
+                        bms.discover();
                     } else {
                         requestPermissions(neededPermissions(), REQ_PERMS);
                     }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void connectTo(final String address) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (hasPermissions()) bms.connectTo(address);
                 }
             });
         }
@@ -109,7 +119,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         if (requestCode != REQ_PERMS) return;
         if (hasPermissions()) {
-            bms.start();
+            bms.discover();
         } else {
             onState("error", "Sin el permiso de \"Dispositivos cercanos\" no puedo conectar con el BMS. "
                 + "Actívalo en Ajustes → Aplicaciones → Must Manager → Permisos.");
@@ -130,6 +140,15 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     public void onState(String state, String message) {
         try {
             send(new JSONObject().put("type", "state").put("state", state).put("message", message));
+        } catch (JSONException ignored) {
+        }
+    }
+
+    @Override
+    public void onDeviceFound(String name, String address, int rssi, boolean lastUsed) {
+        try {
+            send(new JSONObject().put("type", "found").put("name", name == null ? JSONObject.NULL : name)
+                .put("address", address).put("rssi", rssi).put("last", lastUsed));
         } catch (JSONException ignored) {
         }
     }
