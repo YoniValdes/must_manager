@@ -125,7 +125,7 @@
   #bell.on svg path:first-child { fill: currentColor; }
   #bell.on { color: var(--warn); }
   .night { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  @media (max-width: 640px) { .night { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 720px) { .night { grid-template-columns: repeat(2, 1fr); } }
   .night .gcell { text-align: center; padding: 10px 8px 10px; }
   .night .gauge { width: 100%; height: 118px; }
   .night .gcell .sub { min-height: 32px; line-height: 1.35; }
@@ -1000,30 +1000,59 @@
   }
   updateBattery();
   var GAUGE_COLORS = { good: "#22c55e", warn: "#f59e0b", bad: "#ef4444", charge: "#0284c7" };
-  var gauges = {};
+  var gauges = {}, gaugeArgs = {};
+  // El tamaño del arco se calcula en píxeles con el espacio real de la tarjeta, para que nunca se
+  // salga por los lados (antes era un % del alto y en pantallas estrechas se cortaba) y quede centrado.
+  function gaugeGeometry(el) {
+    var w = el.clientWidth, h = el.clientHeight;
+    var stroke = Math.max(8, Math.min(14, Math.round(Math.min(w, h * 2) * 0.075)));
+    var r = Math.max(20, Math.min((w - stroke) / 2 - 4, h - stroke / 2 - 6));
+    return { cx: w / 2, cy: (h + r - stroke / 2) / 2 + 2, r: r, stroke: stroke,
+      font: Math.round(Math.max(15, Math.min(26, r * 0.36))), unit: Math.round(Math.max(10, Math.min(13, r * 0.19))) };
+  }
   function gauge(id, value, max, unit, decimals, st) {
     if (!window.echarts) return;
-    var g = gauges[id] || (gauges[id] = echarts.init($(id)));
+    gaugeArgs[id] = [id, value, max, unit, decimals, st];
+    var el = $(id);
+    if (!gauges[id]) {
+      gauges[id] = echarts.init(el);
+      // Si la tarjeta cambia de tamaño (girar la pantalla, cambiar de 4 a 2 columnas), se redibuja con
+      // las medidas nuevas. ResizeObserver avisa cuando el diseño ya está asentado, no antes.
+      if (window.ResizeObserver) new ResizeObserver(function () { regauge(id); }).observe(el);
+    }
+    var g = gauges[id], geo = gaugeGeometry(el);
+    if (geo.r <= 20 && el.clientWidth < 40) return; // aún sin tamaño (oculto): se dibujará al aparecer
     var css = getComputedStyle(document.documentElement);
     var color = st ? GAUGE_COLORS[st] : css.getPropertyValue("--muted").trim();
     var shown = value == null ? 0 : Math.min(value, max); // el arco no pasa del máximo; el número sí
     g.setOption({
       animation: false,
       series: [{
-        type: "gauge", startAngle: 180, endAngle: 0, min: 0, max: max, radius: "128%", center: ["50%", "88%"],
-        progress: { show: true, width: 12, roundCap: true, itemStyle: Object.assign({ color: color },
+        type: "gauge", startAngle: 180, endAngle: 0, min: 0, max: max, radius: geo.r, center: [geo.cx, geo.cy],
+        progress: { show: true, width: geo.stroke, roundCap: true, itemStyle: Object.assign({ color: color },
           theme.neon && st ? { shadowBlur: 12, shadowColor: color } : {}) },
-        axisLine: { roundCap: true, lineStyle: { width: 12, color: [[1, css.getPropertyValue("--line").trim()]] } },
+        axisLine: { roundCap: true, lineStyle: { width: geo.stroke, color: [[1, css.getPropertyValue("--line").trim()]] } },
         pointer: { show: false }, axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
         anchor: { show: false }, title: { show: false },
-        detail: { offsetCenter: [0, "-18%"], fontSize: 24, fontWeight: 800, color: css.getPropertyValue("--text").trim(),
+        detail: { offsetCenter: [0, -Math.round(geo.r * 0.26)], fontSize: geo.font, fontWeight: 800, color: css.getPropertyValue("--text").trim(),
           formatter: function () { return value == null ? "--" : fmt(value, decimals) + "{u| " + unit + "}"; },
-          rich: { u: { fontSize: 13, fontWeight: 600, color: css.getPropertyValue("--muted").trim() } } },
+          rich: { u: { fontSize: geo.unit, fontWeight: 600, color: css.getPropertyValue("--muted").trim() } } },
         data: [{ value: shown }]
       }]
     }, true);
   }
-  window.addEventListener("resize", function () { for (var k in gauges) gauges[k].resize(); });
+  var regaugePending = {};
+  function regauge(id) {
+    if (regaugePending[id]) return;
+    regaugePending[id] = true;
+    requestAnimationFrame(function () {
+      regaugePending[id] = false;
+      if (!gauges[id] || !gaugeArgs[id]) return;
+      gauges[id].resize();
+      gauge.apply(null, gaugeArgs[id]);
+    });
+  }
+  window.addEventListener("resize", function () { for (var k in gauges) regauge(k); });
 
   function renderChart(rows, now) {
     if (!window.echarts) return;

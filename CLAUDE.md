@@ -134,6 +134,7 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
 **Lecciones**
 - `[hidden]` siempre debe ocultar: los botones con `display` propio lo ignoraban. Hay una regla global.
 - En ECharts, `visualMap` fallaba con dos paneles (`reading 'coord'`) y la potencia no se dibujaba. Se resolvió con dos series separadas.
+- Medidores de "Esta noche" (24-nov-2026): con `radius: "128%"` (un % del lado menor) el arco se salía por los lados en tarjetas estrechas, y al girar la pantalla se redibujaban antes de que el diseño se asentara (unos diminutos, otros cortados; por eso parecía "inestable"). Ahora `gaugeGeometry()` calcula radio, centro, grosor y letra en píxeles con el tamaño real de la tarjeta, y un `ResizeObserver` por medidor los redibuja cuando cambia su tamaño. Pasan a 2 columnas por debajo de 720 px (antes 640).
 - `build.ps1` empaqueta los assets con rutas "/" (aapt2 en Windows ponía ""), y con `-Install` detiene la app antes de instalar para liberar el BMS.
 
 ## Estado
