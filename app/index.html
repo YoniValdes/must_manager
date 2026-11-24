@@ -604,7 +604,7 @@
   // así la autonomía no se dispara cuando el compresor está parado ni se hunde cuando arranca.
   var WINDOW_MS = 30 * 60 * 1000;
   var IDLE_A = 0.3;             // por debajo de esto se considera reposo
-  var samples = [];             // [{t, a}]
+  var samples = [];             // [{t, a, w}]: w = segundos que representa (para la media ponderada por tiempo)
   var serials = {};
 
   function fmtDuration(h) {
@@ -630,11 +630,31 @@
     return mins >= +r[0] * 60 + +r[1] && mins < +s[0] * 60 + +s[1];
   }
 
+  // En la APK, al empezar, la media se rellena con los últimos 30 min del historial (1 dato por minuto)
+  // para que la autonomía salga estable desde el primer momento, sin esperar media hora.
+  // Solo si el historial es reciente (la app estaba grabando hasta hace poco).
+  function seedSamples(b, now) {
+    if (typeof hasHistory === "undefined" || !hasHistory || !b.voltageV) return;
+    var rows;
+    try { rows = JSON.parse(window.Android.getHistory(now - WINDOW_MS, now, 60000)); } catch (e) { return; }
+    if (!rows || !rows.length || now - rows[rows.length - 1][0] > 3 * 60000) return;
+    rows.forEach(function (r) {
+      // r = [inicio del minuto, soc, W medios (negativo = descarga), ...] → corriente aproximada con el voltaje actual
+      samples.push({ t: r[0] + 30000, a: r[2] / b.voltageV, w: 60 });
+    });
+  }
+
   function renderEta(b) {
     var now = Date.now();
-    samples.push({ t: now, a: b.currentA });
+    if (!samples.length) seedSamples(b, now);
+    // Peso de cada lectura en vivo: el tiempo desde la anterior (máx. 30 s, por si hubo un corte).
+    var prev = samples.length ? samples[samples.length - 1].t : now - 4000;
+    samples.push({ t: now, a: b.currentA, w: Math.max(1, Math.min(30, (now - prev) / 1000)) });
     while (samples.length && now - samples[0].t > WINDOW_MS) samples.shift();
-    var avgA = samples.reduce(function (s, x) { return s + x.a; }, 0) / samples.length;
+    // Media ponderada por tiempo: un minuto del historial pesa 60 s y cada lectura en vivo sus ~4 s.
+    var sumW = 0, sumA = 0;
+    samples.forEach(function (x) { sumA += x.a * x.w; sumW += x.w; });
+    var avgA = sumA / sumW;
     var spanMin = (now - samples[0].t) / 60000;
     var avgW = Math.abs(avgA) * b.voltageV;
     var cutoffAh = b.fullAh * CUTOFF_SOC / 100;

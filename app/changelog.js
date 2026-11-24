@@ -17,7 +17,7 @@ window.CHANGELOG = [
       ["new", "Ajustes nuevos en la campana: potencia del inversor y de tus paneles (para que el aviso de «llegó la corriente» no salte por el sol)."],
       ["new", "Esta ventana de novedades después de cada actualización."],
       ["fix", "Los medidores de «Esta noche» ya no se cortan ni se deforman en vertical o al girar la pantalla."],
-      ["imp", "La autonomía usa el consumo medio de los últimos 30 minutos: más realista y estable (antes 5 min, y se disparaba con la nevera parada)."],
+      ["imp", "La autonomía usa el consumo medio de los últimos 30 minutos: más realista y estable (antes 5 min, y se disparaba con la nevera parada). Al abrir la app ya sale estable, con el historial."],
       ["imp", "Los KPIs muestran de fondo una gráfica suave de los últimos 15 minutos."],
       ["imp", "Alto contraste sin bordes: fondo más oscuro y tarjetas más claras."],
       ["imp", "El color del voltaje se calcula por celda, así vale para cualquier batería."],
