@@ -29,7 +29,7 @@ final class AlertManager {
     // Detección de la red: cuánto tiene que durar la condición y con qué potencia (W, media de 1 min).
     private static final long GRID_CONFIRM_MS = MIN;
     private static final double GRID_ON_NIGHT_W = 150;   // de noche cualquier carga real es la red
-    private static final double GRID_ON_DAY_W = 1050;    // de día, más de lo que dan 2 × 510 W de paneles
+    private static final double GRID_ON_DAY_MARGIN = 1.03; // de día, algo más de lo que pueden dar los paneles
     private static final double GRID_OFF_W = -100;       // la batería vuelve a descargar → se fue la red
     private static final long CONN_LOST_MS = 5 * MIN;
 
@@ -120,7 +120,7 @@ final class AlertManager {
         double[] avg = average(now, MIN);
         if (avg == null || avg[2] < 50000) return; // menos de ~1 min de datos
         double w = avg[1];
-        boolean cond = gridOn ? w < GRID_OFF_W : w > (s.isNight(now) ? GRID_ON_NIGHT_W : GRID_ON_DAY_W);
+        boolean cond = gridOn ? w < GRID_OFF_W : w > (s.isNight(now) ? GRID_ON_NIGHT_W : s.panelsW * GRID_ON_DAY_MARGIN);
         if (!cond) {
             gridCondSince = 0;
             return;

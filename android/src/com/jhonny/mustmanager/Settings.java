@@ -17,6 +17,10 @@ public final class Settings {
     public String sunset = "18:00";
     /** Ajuste 38 del inversor: corta la descarga a este SOC. */
     public int cutoffSoc = 15;
+    /** Potencia máxima del inversor en W. 0 = automático según la batería (24 V → 3000 W, 48 V → 6000 W). */
+    public int inverterW = 0;
+    /** Potencia de los paneles en W (de día, cargar por encima de esto solo puede ser la red). */
+    public int panelsW = 1020;
 
     private static final String KEY = "settings";
 
@@ -44,6 +48,9 @@ public final class Settings {
             s.sunrise = time(o.optString("sunrise", s.sunrise), s.sunrise);
             s.sunset = time(o.optString("sunset", s.sunset), s.sunset);
             s.cutoffSoc = clamp(o.optInt("cutoffSoc", s.cutoffSoc), 0, 50);
+            int inv = o.optInt("inverterW", s.inverterW);
+            s.inverterW = inv <= 0 ? 0 : clamp(inv, 500, 20000);
+            s.panelsW = clamp(o.optInt("panelsW", s.panelsW), 100, 30000);
         } catch (JSONException ignored) {
         }
         return s;
@@ -54,7 +61,8 @@ public final class Settings {
         try {
             o.put("socAlerts", socAlerts).put("socWarn", socWarn).put("socCritical", socCritical)
                 .put("gridAlerts", gridAlerts).put("sunriseAlerts", sunriseAlerts).put("connAlerts", connAlerts)
-                .put("sunrise", sunrise).put("sunset", sunset).put("cutoffSoc", cutoffSoc);
+                .put("sunrise", sunrise).put("sunset", sunset).put("cutoffSoc", cutoffSoc)
+                .put("inverterW", inverterW).put("panelsW", panelsW);
         } catch (JSONException ignored) {
         }
         return o;

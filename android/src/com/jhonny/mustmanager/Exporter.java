@@ -35,20 +35,42 @@ final class Exporter {
 
     static final String MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     static final String MIME_CSV = "text/csv";
-    private static final int CELLS = 8;
+    /** Celdas por defecto si no hay lecturas con celdas (batería de 24 V). */
+    private static final int DEFAULT_CELLS = 8;
 
-    private static final String[] HEAD_READINGS = buildReadingsHeader();
-    private static final int[] WIDTH_READINGS = {20, 8, 11, 12, 12, 13, 12, 13, 13, 13, 15,
-        10, 10, 10, 10, 10, 10, 10, 10, 13, 13, 15, 15, 13};
+    /** Nº de celdas de la batería: el de la lectura más reciente del periodo (8 en 24 V, 16 en 48 V). */
+    private static int cellCount(SQLiteDatabase db, String[] args) {
+        Cursor c = db.rawQuery("SELECT cells FROM readings WHERE ts >= ? AND ts < ? AND cells IS NOT NULL"
+            + " ORDER BY ts DESC LIMIT 1", args);
+        try {
+            if (c.moveToFirst()) {
+                int n = c.getString(0).split(",").length;
+                if (n >= 1 && n <= 32) return n;
+            }
+        } finally {
+            c.close();
+        }
+        return DEFAULT_CELLS;
+    }
 
-    private static String[] buildReadingsHeader() {
+    private static int[] readingsWidths(int cells) {
+        int[] head = {20, 8, 11, 12, 12, 13, 12, 13, 13, 13, 15};
+        int[] tail = {13, 13, 15, 15, 13};
+        int[] w = new int[head.length + cells + tail.length];
+        System.arraycopy(head, 0, w, 0, head.length);
+        for (int i = 0; i < cells; i++) w[head.length + i] = 10;
+        System.arraycopy(tail, 0, w, head.length + cells, tail.length);
+        return w;
+    }
+
+    private static String[] buildReadingsHeader(int nCells) {
         String[] base = {"Fecha y hora", "SOC (%)", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Estado",
             "Restante (Ah)", "Capacidad (Ah)", "Celda mín (mV)", "Celda máx (mV)", "Diferencia (mV)"};
         String[] tail = {"Temp. máx (°C)", "Temp. MOS (°C)", "Temp. ambiente (°C)", "Duración (s)", "Energía (Wh)"};
-        String[] h = new String[base.length + CELLS + tail.length];
+        String[] h = new String[base.length + nCells + tail.length];
         System.arraycopy(base, 0, h, 0, base.length);
-        for (int i = 0; i < CELLS; i++) h[base.length + i] = "Celda " + (i + 1) + " (mV)";
-        System.arraycopy(tail, 0, h, base.length + CELLS, tail.length);
+        for (int i = 0; i < nCells; i++) h[base.length + i] = "Celda " + (i + 1) + " (mV)";
+        System.arraycopy(tail, 0, h, base.length + nCells, tail.length);
         return h;
     }
 
@@ -60,7 +82,8 @@ final class Exporter {
         SQLiteDatabase db = ReadingStore.get(ctx).getReadableDatabase();
         OutputStream out = open(ctx, r);
         try {
-            r.rows = xlsx ? writeXlsx(db, from, to, out) : writeCsv(db, from, to, out);
+            int cells = cellCount(db, new String[]{Long.toString(from), Long.toString(to)});
+            r.rows = xlsx ? writeXlsx(db, from, to, out, cells) : writeCsv(db, from, to, out, cells);
         } finally {
             out.close();
         }
@@ -103,16 +126,17 @@ final class Exporter {
 
     // ------------------------------------------------------------------ Excel
 
-    private static int writeXlsx(SQLiteDatabase db, long from, long to, OutputStream out) throws IOException {
+    private static int writeXlsx(SQLiteDatabase db, long from, long to, OutputStream out, int cells) throws IOException {
         XlsxWriter x = new XlsxWriter(out);
         String[] args = {Long.toString(from), Long.toString(to)};
 
-        x.startSheet("Lecturas", HEAD_READINGS, WIDTH_READINGS);
+        String[] head = buildReadingsHeader(cells);
+        x.startSheet("Lecturas", head, readingsWidths(cells));
         int rows = 0;
         Cursor c = db.rawQuery(READINGS_SQL, args);
         try {
             while (c.moveToNext()) {
-                x.row(readingRow(c, true));
+                x.row(readingRow(c, true, head.length, cells));
                 rows++;
             }
         } finally {
@@ -163,16 +187,17 @@ final class Exporter {
 
     // ------------------------------------------------------------------ CSV (formato estándar: comas y punto decimal)
 
-    private static int writeCsv(SQLiteDatabase db, long from, long to, OutputStream out) throws IOException {
+    private static int writeCsv(SQLiteDatabase db, long from, long to, OutputStream out, int cells) throws IOException {
         BufferedWriter w = new BufferedWriter(new OutputStreamWriter(out, "UTF-8"));
         w.write('﻿'); // BOM: Excel reconoce así las tildes
-        w.write(join(HEAD_READINGS));
+        String[] head = buildReadingsHeader(cells);
+        w.write(join(head));
         w.write("\r\n");
         int rows = 0;
         Cursor c = db.rawQuery(READINGS_SQL, new String[]{Long.toString(from), Long.toString(to)});
         try {
             while (c.moveToNext()) {
-                w.write(join(readingRow(c, false)));
+                w.write(join(readingRow(c, false, head.length, cells)));
                 w.write("\r\n");
                 rows++;
             }
@@ -188,10 +213,10 @@ final class Exporter {
     private static final String READINGS_SQL = "SELECT ts, soc, v, a, w, rem_ah, full_ah, cell_min, cell_max, delta_mv,"
         + " cells, t_max, t_mos, t_amb, dt FROM readings WHERE ts >= ? AND ts < ? ORDER BY ts";
 
-    private static Object[] readingRow(Cursor c, boolean excelDate) {
+    private static Object[] readingRow(Cursor c, boolean excelDate, int columns, int nCells) {
         long ts = c.getLong(0);
         double a = c.getDouble(3), w = c.getDouble(4), dt = c.getDouble(14);
-        Object[] row = new Object[HEAD_READINGS.length];
+        Object[] row = new Object[columns];
         int i = 0;
         row[i++] = excelDate ? new XlsxWriter.Date(ts) : LOCAL.get().format(new Date(ts));
         row[i++] = c.getInt(1);
@@ -205,7 +230,7 @@ final class Exporter {
         row[i++] = c.getInt(8);
         row[i++] = c.getInt(9);
         String[] cells = c.isNull(10) ? new String[0] : c.getString(10).split(",");
-        for (int k = 0; k < CELLS; k++) row[i++] = k < cells.length ? (Object) Integer.valueOf(cells[k].trim()) : null;
+        for (int k = 0; k < nCells; k++) row[i++] = k < cells.length ? (Object) Integer.valueOf(cells[k].trim()) : null;
         row[i++] = round(c.getDouble(11), 1);
         row[i++] = round(c.getDouble(12), 1);
         row[i++] = round(c.getDouble(13), 1);

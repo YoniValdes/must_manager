@@ -86,7 +86,9 @@
       tempMosC: kelvin(u16(d, 33)), tempAmbientC: kelvin(u16(d, 35)),
       cellMaxIndex: d[37], cellMaxMv: u16(d, 38), cellMinIndex: d[40], cellMinMv: u16(d, 41)
     };
-    if (b.soc > 100 || b.voltageV < 10 || b.voltageV > 40) throw new Error("valores fuera de rango");
+    // Rango amplio: baterías de 24 V (8S, HBP3000 LV) y de 48 V (16S, HBP3300 TLV y similares).
+    if (b.soc > 100) throw new Error("SOC fuera de rango: " + b.soc + " %");
+    if (b.voltageV < 10 || b.voltageV > 70) throw new Error("voltaje fuera de rango: " + b.voltageV + " V");
     return b;
   }
 

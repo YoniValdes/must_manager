@@ -82,8 +82,15 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - El nombre "Must" es una marca de MUST Power. Para compartirla entre amigos no hay problema, pero si algún día se publica en Google Play conviene cambiarlo o dejar claro que es una app no oficial.
 - El BMS solo ve el consumo total de la casa. El consumo por aparato se obtiene apagando aparatos uno a uno y viendo cuánto baja la corriente (W ≈ ΔA × 26,5 V).
 
-## Estado de la app (v0.20, 23-nov-2026)
-Versión en `android/AndroidManifest.xml` (`versionName` 0.20). Cada versión es un commit `vX.Y: …` con el detalle en el cuerpo del mensaje (`git log`).
+## Estado de la app (v0.21, 24-nov-2026)
+Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
+
+**Sistemas compatibles (v0.21):** baterías de **24 V (8S)**, como el HBP3000 LV de Jhonny, y de **48 V (16S)**, como el **HBP3300 TLV** de un amigo (6 kW, 280 Ah ≈ 14,3 kWh, ~55,7 V; mismo BMS, protocolo y signo de corriente). Con la v0.20 su app decía "respuesta del BMS con formato inesperado (valores fuera de rango)" porque solo se aceptaban de 10 a 40 V.
+- Se acepta un voltaje de pack de 10 a 70 V (`BmsProtocol.MIN_PACK_V`/`MAX_PACK_V`, y lo mismo en `webble.js`). El error dice ahora qué valor falló ("voltaje fuera de rango: 75.0 V").
+- La pantalla detecta la batería sola: nº de celdas de la trama `0A 02` (antes de recibirla, por el voltaje: > 36 V → 16) y capacidad de diseño en Ah. kWh = celdas × 3,2 V × Ah. Se guarda en `localStorage` (`mm-battery`) para el historial sin conexión.
+- Los umbrales del voltaje van **por celda** (3,0 / 3,1 / 3,55 / 3,6 V).
+- Ajustes nuevos: **Inversor** en W (vacío = automático: 24 V → 3000 W, 48 V → 6000 W; mide el medidor de pico, con verde < 50 % y ámbar < 80 %) y **Paneles** en W (1020 por defecto). De día, "llegó la corriente" salta por encima de paneles × 1,03 (antes, 1050 W fijos).
+- Exportar: tantas columnas "Celda N" como celdas tenga la batería (las de la lectura más reciente del periodo). Cada versión es un commit `vX.Y: …` con el detalle en el cuerpo del mensaje (`git log`).
 
 **Java (`android/src/com/jhonny/mustmanager/`)**
 - `MainActivity`: WebView con `app/` y puente `Android` hacia la página. Los enlaces `mailto:` abren la app de correo; cualquier otra navegación fuera de `file:///android_asset/` se bloquea.
@@ -124,4 +131,5 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.20). Cada versión es
 - Nombre del proyecto y de la APK decidido: **Must Manager**.
 - Paso 1 hecho (23-nov-2026): servicios BLE descubiertos (ver sección "Servicios BLE del BMS").
 - Paso 2 hecho (23-nov-2026): protocolo descifrado desde el HCI log; todos los valores coinciden con la lectura de referencia.
+- v0.21 (24-nov-2026): compatible también con baterías de 48 V (16S). Pendiente: que el amigo del HBP3300 TLV la pruebe y ponga los W de sus paneles en Ajustes.
 - Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Paso 6 hecho: la v0.20 ya está compartida con amigos que tienen el mismo sistema.

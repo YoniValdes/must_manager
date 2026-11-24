@@ -65,6 +65,15 @@ public class ProtocolTest {
         check(near(b.tempMosC, 30.2), "MOS 30,2 °C (" + b.tempMosC + ")");
         check(near(b.tempAmbientC, 32.9), "ambiente 32,9 °C (" + b.tempAmbientC + ")");
         check(b.cellMaxIndex == 3 && b.cellMaxMv == 3490, "celda máx. 3 → 3490 mV");
+
+        // Batería de 48 V (16S, HBP3300 TLV): 55,68 V debe aceptarse; 75 V es basura y se rechaza.
+        byte[] d48 = f.get(0).data.clone();
+        d48[3] = (byte) 0x15; d48[4] = (byte) 0xC0; // 5568 → 55,68 V
+        check(near(BmsProtocol.parseBasic(d48).voltageV, 55.68), "48 V: 55,68 V aceptado");
+        d48[3] = (byte) 0x1D; d48[4] = (byte) 0x4C; // 7500 → 75,00 V
+        boolean rejected = false;
+        try { BmsProtocol.parseBasic(d48); } catch (IllegalArgumentException e) { rejected = true; }
+        check(rejected, "75 V rechazado (fuera de rango)");
         check(b.cellMinIndex == 1 && b.cellMinMv == 3473, "celda mín. 1 → 3473 mV");
 
         System.out.println("Celdas (0A 02), captura 14:12:09");

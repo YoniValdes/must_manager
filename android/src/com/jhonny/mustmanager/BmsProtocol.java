@@ -138,6 +138,9 @@ public final class BmsProtocol {
     // Decodificación de respuestas
     // ---------------------------------------------------------------------------------
 
+    /** Voltaje de pack aceptado: de 8S casi vacía (~20 V) a 16S llena (~58,4 V), con margen. */
+    public static final double MIN_PACK_V = 10, MAX_PACK_V = 70;
+
     /** 0A 01: datos básicos del pack. */
     public static final class Basic {
         public double currentA, voltageV, remainingAh, fullAh, designAh;
@@ -171,8 +174,10 @@ public final class BmsProtocol {
         b.cellMaxMv = u16(d, 38);
         b.cellMinIndex = d[40] & 0xFF;
         b.cellMinMv = u16(d, 41);
-        if (b.soc > 100 || b.voltageV < 10 || b.voltageV > 40) {
-            throw new IllegalArgumentException("valores fuera de rango");
+        // Rango amplio: baterías de 24 V (8S, HBP3000 LV) y de 48 V (16S, HBP3300 TLV y similares).
+        if (b.soc > 100) throw new IllegalArgumentException("SOC fuera de rango: " + b.soc + " %");
+        if (b.voltageV < MIN_PACK_V || b.voltageV > MAX_PACK_V) {
+            throw new IllegalArgumentException("voltaje fuera de rango: " + b.voltageV + " V");
         }
         return b;
     }
