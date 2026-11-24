@@ -79,6 +79,11 @@ final class AlertManager {
         else sunriseAlerted = false;
     }
 
+    /** Media de los últimos 30 min {corriente A, potencia W, ms cubiertos}, o null. La usa también el widget. */
+    double[] average30() {
+        return average(System.currentTimeMillis(), SUNRISE_AVG_MS);
+    }
+
     /** El BMS no responde o se perdió la conexión (y el usuario no pidió desconectar). */
     void onConnectionProblem() {
         if (connPending || connAlerted || !Settings.load(ctx).connAlerts) return;

@@ -264,6 +264,10 @@ public class MonitorService extends Service implements BmsClient.Listener {
             alerts.onConnectionProblem();
         }
         if (!"connected".equals(state) || lastBasic == null) updateNotification(message, changed);
+        try {
+            BatteryWidget.onState(this, state, message);
+        } catch (RuntimeException ignored) {
+        }
         if (ui != null) ui.onState(state, message);
     }
 
@@ -298,6 +302,11 @@ public class MonitorService extends Service implements BmsClient.Listener {
             + Math.round(Math.abs(w)) + " W";
         updateNotification("SOC " + b.soc + " % · " + flow, false);
         alerts.onReading(b);
+        try {
+            BatteryWidget.onReading(this, b, alerts.average30());
+        } catch (RuntimeException ignored) {
+            // Un fallo del widget no debe cortar la monitorización.
+        }
         if (ui != null) ui.onBasic(b);
     }
 
