@@ -160,7 +160,10 @@
   /* Acerca de */
   /* Acerca de: ventana emergente centrada sobre un fondo oscuro */
   .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
-    padding: 16px; background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px); animation: modalFade .18s ease-out; }
+    padding: 16px; background: rgba(0, 0, 0, .6); animation: modalFade .18s ease-out;
+    /* El difuminado va en el fondo: el de la propia ventana no actúa si el fondo ya difumina (limitación
+       del navegador), así que lo de detrás se ve esmerilado a través del 10 % de transparencia. */
+    -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
   /* Borde de neón con el color de acento de la paleta, y entrada creciendo de pequeño a grande
      con un ligero rebote al final (no un simple fundido). */
   /* Alto máximo: 640 px o el alto VISIBLE menos un margen (100dvh descuenta la barra de Chrome en
@@ -171,7 +174,10 @@
     padding: 18px 18px 16px; border: 1px solid color-mix(in srgb, var(--acc) 70%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 35%, transparent), 0 0 18px color-mix(in srgb, var(--acc) 45%, transparent),
       0 0 46px color-mix(in srgb, var(--acc) 22%, transparent), 0 18px 50px rgba(0, 0, 0, .55);
-    transform-origin: 50% 50%; animation: modalPop .42s cubic-bezier(.2, .9, .3, 1.25) both; }
+    transform-origin: 50% 50%; animation: modalPop .42s cubic-bezier(.2, .9, .3, 1.25) both;
+    /* Efecto cristal (petición de Jhonny): la ventana deja ver un 10 % de lo de detrás, difuminado. */
+    background: color-mix(in srgb, var(--card) 90%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); }
   @keyframes modalFade { from { opacity: 0; } }
   /* Al cerrar: se encoge hacia el centro y se desvanece (lo contrario de abrir). */
   .modal.closing { animation: modalFadeOut .24s ease-in forwards; pointer-events: none; }
@@ -203,6 +209,10 @@
   @media (max-height: 620px) { .modal .about .aboutLogo { display: none; } .modal .about { padding-top: 14px; } }
   /* Medidor de aparatos */
   .modal .apps { max-width: 460px; }
+  /* Exportar y Alertas: formularios, más anchos y con el contenido alineado a la izquierda */
+  .modal .panel { max-width: 540px; }
+  .modal .panel .set { text-align: left; }
+  .modal .panel .set label.row, .modal .panel .set .times, .modal .panel .set .inline { font-size: 14px; }
   /* Personalizar: fondo más claro y sin difuminar, para ver cómo cambia la app de detrás al elegir */
   .modal.themeModal { background: rgba(0, 0, 0, .3); backdrop-filter: none; }
   .modal .theme { max-width: 540px; }
@@ -413,8 +423,12 @@
 </div>
 </div>
 
-<div class="card settings" id="exportCard" hidden>
-  <h2>Exportar datos <button class="icon close" id="eClose" aria-label="Cerrar">✕</button></h2>
+<div class="modal" id="exportCard" hidden>
+<div class="card settings about panel" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+  <button class="icon close" id="eClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">📤</div>
+  <div class="newsVer" id="exportTitle">Exportar datos</div>
+  <div class="newsSub">Tus lecturas en Excel o CSV</div>
   <div class="set">
     <div class="times">Periodo
       <select id="eRange">
@@ -432,10 +446,16 @@
       <button class="secondary" id="eShare" hidden>Compartir</button></div>
     <div class="sub" id="eResult"></div>
   </div>
+  <button class="secondary aboutOk" id="eOk">Cerrar</button>
+</div>
 </div>
 
-<div class="card settings" id="settingsCard" hidden>
-  <h2>Alertas y ajustes <button class="icon close" id="sClose" aria-label="Cerrar">✕</button></h2>
+<div class="modal" id="settingsCard" hidden>
+<div class="card settings about panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <button class="icon close" id="sClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">🔔</div>
+  <div class="newsVer" id="settingsTitle">Alertas y ajustes</div>
+  <div class="newsSub">Avisos de la batería y datos de tu equipo</div>
   <div class="set">
     <label class="row"><input type="checkbox" id="sSoc"><span>🔋 Avisar con la batería baja
       <span class="sub"><br>Un aviso y otro más urgente; cada uno suena una vez.</span></span></label>
@@ -458,6 +478,8 @@
     <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button><button class="secondary" id="sTestAlarm">Probar alarma</button>
       <span class="saved" id="sSaved"></span></div>
   </div>
+  <button class="secondary aboutOk" id="sOk">Cerrar</button>
+</div>
 </div>
 
 <div class="status" id="status" data-state="disconnected">
@@ -1458,10 +1480,21 @@
   $("aOk").addEventListener("click", closeAbout);
   // Tocar fuera de la ventana (en el fondo oscuro) también la cierra; y la tecla Escape.
   $("aboutCard").addEventListener("click", function (e) { if (e.target === this) closeAbout(); });
+  // Alertas y Exportar (solo APK): mismas formas de cerrar que el resto de ventanas.
+  function closeSettings() { togglePanel("settingsCard", "bell", false); }
+  function closeExport() { togglePanel("exportCard", "exportBtn", false); }
+  $("sOk").addEventListener("click", closeSettings);
+  $("eOk").addEventListener("click", closeExport);
+  $("settingsCard").addEventListener("click", function (e) { if (e.target === this) closeSettings(); });
+  $("exportCard").addEventListener("click", function (e) { if (e.target === this) closeExport(); });
+  // Prueba de diseño en el navegador (sin la APK no funcionan, pero se ven): ?panel=alertas / ?panel=exportar
+  if (/[?&]panel=alertas/.test(location.search)) setTimeout(function () { togglePanel("settingsCard", "bell", true); }, 0);
+  if (/[?&]panel=exportar/.test(location.search)) setTimeout(function () { togglePanel("exportCard", "exportBtn", true); }, 0);
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
     else if (!$("appsCard").hidden) closeApps(); else if (!$("themeCard").hidden) closeTheme();
+    else if (!$("settingsCard").hidden) closeSettings(); else if (!$("exportCard").hidden) closeExport();
     else if (!$("aboutCard").hidden) closeAbout();
   });
 
@@ -1691,7 +1724,8 @@
   // Ventanas emergentes: se abren y se cierran siempre con estas dos funciones, para que el cierre
   // espere a que termine su animación antes de ocultarlas.
   // (Funciones y no variables: la ventana de novedades se abre al arrancar, antes de llegar aquí.)
-  function isModalId(id) { return id === "aboutCard" || id === "appsCard" || id === "newsCard" || id === "meterCard" || id === "themeCard"; }
+  // Cualquier elemento con la clase "modal" es una ventana emergente (así las nuevas lo son sin tocar nada aquí).
+  function isModalId(id) { var el = $(id); return !!el && el.classList.contains("modal"); }
   function modalCloseMs() { return 240; }
   function reducedMotion() { return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches); }
   function showModal(el) {
@@ -1716,7 +1750,7 @@
     if (isModalId(cardId)) { if (open) showModal(cur); }
     else cur.hidden = !open;
     $(btnId).setAttribute("aria-expanded", String(open));
-    // Acerca de y Mis aparatos son ventanas emergentes: no hace falta subir, pero sí bloquear el scroll de detrás.
+    // Todas las de la cabecera son ventanas emergentes: no hace falta subir, pero sí bloquear el scroll de detrás.
     var modalNow = isModalId(cardId);
     document.body.classList.toggle("modalOpen", open && modalNow);
     if (open && !modalNow) window.scrollTo({ top: 0, behavior: "smooth" });
