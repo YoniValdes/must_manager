@@ -31,5 +31,12 @@
         </activity>
         <service android:name=".MonitorService" android:exported="false"
             android:foregroundServiceType="connectedDevice"/>
+        <!-- Widget de la pantalla de inicio (SOC, consumo y autonomía). Los datos se los pasa MonitorService. -->
+        <receiver android:name=".BatteryWidget" android:exported="false" android:label="Must Manager">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info"/>
+        </receiver>
     </application>
 </manifest>

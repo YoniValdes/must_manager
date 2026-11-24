@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget: de fondo, el cielo de la app (imagen que dibuja BatteryWidget al tamaño del widget);
+     delante, el anillo del SOC y potencia, autonomía y veredicto. Los tamaños de letra, del anillo y
+     los márgenes los ajusta BatteryWidget según lo que mida el widget.
+     Solo piezas que Android permite en un widget (RemoteViews): FrameLayout, LinearLayout, TextView, ImageView. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg">
+
+    <ImageView
+        android:id="@+id/w_sky"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"/>
+
+    <LinearLayout
+        android:id="@+id/w_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="12dp"
+        android:paddingRight="14dp">
+
+        <ImageView
+            android:id="@+id/w_ring"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="SOC"/>
+
+        <LinearLayout
+            android:id="@+id/w_texts"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/w_power"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:shadowColor="#B3000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="4"
+                    android:text="Must Manager"
+                    android:textColor="#E6EDF3"
+                    android:textSize="13sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/w_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="6dp"
+                    android:maxLines="1"
+                    android:shadowColor="#B3000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="4"
+                    android:textColor="#C8D1DA"
+                    android:textSize="11sp"/>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/w_eta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:shadowColor="#B3000000"
+                android:shadowDy="1"
+                android:shadowRadius="5"
+                android:text="--"
+                android:textColor="#E6EDF3"
+                android:textSize="22sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/w_line"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:shadowColor="#B3000000"
+                android:shadowDy="1"
+                android:shadowRadius="4"
+                android:text="Sin conexión · toca para abrir"
+                android:textColor="#D5DDE5"
+                android:textSize="12sp"/>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
