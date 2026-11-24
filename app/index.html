@@ -28,11 +28,9 @@
   body.neon header h1 { text-shadow: 0 0 12px color-mix(in srgb, var(--acc) 50%, transparent); }
   body.neon #arc { filter: drop-shadow(0 0 6px currentColor); }
   body:not(.neon) .eta .big { text-shadow: 0 2px 8px rgba(0,0,0,.55); }
-  /* ---- Alto contraste: tarjetas bien separadas del fondo, casillas marcadas, textos más claros ---- */
+  /* ---- Alto contraste: SIN bordes marcados. Las tarjetas se separan del fondo por el tono: applyTheme()
+     oscurece el fondo y aclara tarjetas y casillas a partir de la paleta elegida. Textos más claros. ---- */
   body.hc { --muted: color-mix(in srgb, var(--text) 82%, var(--card)); }
-  body.hc .card, body.hc .status, body.hc .eta { border: 2px solid color-mix(in srgb, var(--text) 38%, var(--card)); }
-  body.hc .tile, body.hc .cell, body.hc .dev { border: 1px solid color-mix(in srgb, var(--text) 26%, var(--card));
-    background: color-mix(in srgb, var(--text) 9%, var(--card)); }
   body.hc .tile b, body.hc .cell b { color: #fff; }
   body.hc .eta .chip { background: rgba(0,0,0,.75); border-color: rgba(255,255,255,.4); }
   * { box-sizing: border-box; }
@@ -267,7 +265,15 @@
   .tile b small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 2px; }
   .tile .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
   /* KPIs: centrados, grandes y con el color de su estado (siempre acompañado del texto de abajo) */
-  .tile.kpi { text-align: center; padding: 14px 12px 12px; display: flex; flex-direction: column; justify-content: center; }
+  .tile.kpi { text-align: center; padding: 14px 12px 12px; display: flex; flex-direction: column; justify-content: center;
+    position: relative; overflow: hidden; }
+  /* Gráfica de fondo de cada KPI: evolución de los últimos 15 min, muy sutil, detrás del número */
+  .tile.kpi > :not(.spark) { position: relative; z-index: 1; }
+  .tile.kpi .spark { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 46%; pointer-events: none;
+    color: var(--st, var(--acc)); }
+  .spark .l { fill: none; stroke: currentColor; stroke-width: 1.25; opacity: .22; vector-effect: non-scaling-stroke;
+    stroke-linejoin: round; stroke-linecap: round; }
+  body.neon .spark .l { opacity: .3; }
   .tile.kpi label { font-size: 13px; letter-spacing: .3px; }
   .tile.kpi b { font-size: 36px; font-weight: 800; line-height: 1.15; margin: 2px 0; }
   .tile.kpi b small { font-size: 16px; }
@@ -279,7 +285,6 @@
   .tile.kpi[data-st] b, .tile.kpi[data-st] .sub { color: var(--st); }
   .tile.kpi[data-st] b small { color: inherit; opacity: .75; }
   /* Sin brillo ni relleno: el estado se ve solo en el color del número y del texto de abajo (igual en verde, ámbar y rojo). */
-  body.hc .tile.kpi[data-st] { border: 2px solid var(--st); }
 
   h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
   h2 .badge { margin-left: auto; font-size: 13px; color: var(--text); }
@@ -851,7 +856,55 @@
     }
   }
 
+  // ---------------------------------------------------------------- gráficas de fondo de los KPIs
+  // Últimos 15 min en memoria (una lectura cada ~4 s). Se reducen a 60 tramos promediados para que la
+  // línea sea suave. Escala de cada gráfica: del mínimo al máximo de su propia serie.
+  var TREND_MS = 15 * 60 * 1000, TREND_BUCKETS = 60, trend = [];
+  var SPARKS = [["kPower", function (r) { return Math.abs(r.v * r.a); }, 30], ["kCurrent", function (r) { return r.a; }, 1],
+    ["kVoltage", function (r) { return r.v; }, 0.05], ["kRemaining", function (r) { return r.ah; }, 0.5]];
+  function pushTrend(b) {
+    var now = Date.now();
+    trend.push({ t: now, v: b.voltageV, a: b.currentA, ah: b.remainingAh });
+    while (trend.length && trend[0].t < now - TREND_MS) trend.shift();
+    drawSparks();
+  }
+  function drawSparks() {
+    SPARKS.forEach(function (sp) {
+      var tile = $(sp[0]), svg = tile.querySelector(".spark");
+      if (!svg) {
+        // Degradado propio de cada tarjeta: currentColor toma el color de ESTA tarjeta (su estado).
+        var gid = "sf-" + sp[0];
+        tile.insertAdjacentHTML("afterbegin", "<svg class='spark' viewBox='0 0 100 40' preserveAspectRatio='none' aria-hidden='true'>" +
+          "<defs><linearGradient id='" + gid + "' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='currentColor' stop-opacity='.11'/>" +
+          "<stop offset='1' stop-color='currentColor' stop-opacity='0'/></linearGradient></defs>" +
+          "<path class='a' fill='url(#" + gid + ")'/><path class='l'/></svg>");
+        svg = tile.querySelector(".spark");
+      }
+      var a = svg.querySelector(".a"), l = svg.querySelector(".l");
+      if (trend.length < 3) { a.setAttribute("d", ""); l.setAttribute("d", ""); return; }
+      // Tramos por tiempo: así los huecos y el ritmo de lecturas no deforman la forma.
+      var t0 = trend[0].t, span = Math.max(1, trend[trend.length - 1].t - t0), sums = [], counts = [];
+      trend.forEach(function (r) {
+        var i = Math.min(TREND_BUCKETS - 1, Math.floor((r.t - t0) / span * TREND_BUCKETS));
+        sums[i] = (sums[i] || 0) + sp[1](r); counts[i] = (counts[i] || 0) + 1;
+      });
+      var pts = [];
+      for (var i = 0; i < TREND_BUCKETS; i++) if (counts[i]) pts.push([i / (TREND_BUCKETS - 1) * 100, sums[i] / counts[i]]);
+      if (pts.length < 2) { a.setAttribute("d", ""); l.setAttribute("d", ""); return; }
+      var vals = pts.map(function (p) { return p[1]; }), min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      // Si apenas varía (menos que sp[2]), se dibuja casi plana en vez de exagerar el ruido.
+      if (max - min < sp[2]) { var mid = (max + min) / 2; min = mid - sp[2] / 2; max = mid + sp[2] / 2; }
+      var path = pts.map(function (p, k) {
+        return (k ? "L" : "M") + p[0].toFixed(1) + "," + (38 - (p[1] - min) / (max - min) * 30).toFixed(1);
+      }).join("");
+      l.setAttribute("d", path);
+      a.setAttribute("d", path + "L" + pts[pts.length - 1][0].toFixed(1) + ",40L" + pts[0][0].toFixed(1) + ",40Z");
+    });
+  }
+
   function resetDashboard() {
+    trend = [];
+    drawSparks();
     renderPacks(0);
     last = { basic: null, cells: null };
     samples = [];
@@ -901,6 +954,7 @@
 
   function renderBasic(b) {
     last.basic = b;
+    pushTrend(b);
     meterReading(b);
     updateBattery(last.cells ? last.cells.mv.length : cellsFromVoltage(b.voltageV), b.designAh || b.fullAh);
     document.body.classList.remove("stale");
@@ -967,7 +1021,14 @@
   function applyTheme() {
     var p = PALETTES.filter(function (x) { return x.id === theme.id; })[0] || PALETTES[0];
     var st = document.documentElement.style;
-    ["bg", "card", "tile", "line", "text", "muted", "acc"].forEach(function (k) { st.setProperty("--" + k, p[k]); });
+    var c = { bg: p.bg, card: p.card, tile: p.tile, line: p.line };
+    if (theme.hc) {
+      // Alto contraste por tono, no por bordes: fondo casi negro, tarjetas más claras y casillas
+      // (dentro de las tarjetas) un poco más claras todavía.
+      c = { bg: mix(p.bg, "#000000", .55), card: mix(p.card, p.text, .09), tile: mix(p.card, p.text, .16), line: mix(p.line, p.text, .12) };
+    }
+    ["bg", "card", "tile", "line"].forEach(function (k) { st.setProperty("--" + k, c[k]); });
+    ["text", "muted", "acc"].forEach(function (k) { st.setProperty("--" + k, p[k]); });
     st.setProperty("--on-acc", lum(p.acc) > 0.4 ? "#111111" : "#ffffff");
     document.body.classList.toggle("neon", theme.neon);
     document.body.classList.toggle("hc", theme.hc);
@@ -1681,6 +1742,14 @@
     window.bms({ type: "state", state: "connected", message: "Demostración con la lectura de referencia del 23-nov-2026" });
     window.bms({ type: "device", key: 1, text: "P8S200A-41080-1.03 · P8S200A-41080-1.03-002 · 21887V130" });
     window.bms({ type: "device", key: 4, text: "410801351500888Z" });
+    // 15 min simulados para las gráficas de fondo de los KPIs (consumo que sube y baja)
+    var tNow = Date.now(), ah = 281.6;
+    trend = [];
+    for (var ti = 225; ti > 0; ti--) {
+      var amps = -(15 + 5 * Math.sin(ti / 45) + 1.2 * Math.sin(ti / 12));
+      ah += amps * 4 / 3600;
+      trend.push({ t: tNow - ti * 4000, a: amps, v: 26.95 + amps * 0.012, ah: ah + 0 });
+    }
     window.bms({ type: "basic", currentA: -20.73, voltageV: 26.91, remainingAh: 278.2, fullAh: 280, designAh: 280,
       soc: 99, soh: 100, cycles: 212, tempMosC: 30.1, tempAmbientC: 32.9 });
     window.bms({ type: "cells", packVoltageV: 27.89, mv: [3473, 3486, 3490, 3480, 3474, 3489, 3489, 3488],
