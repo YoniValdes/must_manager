@@ -4,27 +4,22 @@
  * AL PUBLICAR UNA VERSIÓN: añade una entrada nueva ARRIBA del todo, con el mismo número que
  * versionName en android/AndroidManifest.xml. Frases cortas, pensadas para el usuario (no técnicas).
  *   tipo "new" = Nuevo · "fix" = Corregido · "imp" = Mejorado
+ *
+ * Solo lo que el usuario nota respecto a la versión anterior publicada (no los arreglos internos
+ * hechos durante el desarrollo). Unas 6–8 líneas; juntar lo parecido en una sola.
  */
 window.CHANGELOG = [
   {
     version: "0.21",
     items: [
-      ["new", "Widget para la pantalla de inicio: SOC, consumo y autonomía sobre el cielo de la app, sin abrirla. Mantén pulsado un hueco de la pantalla de inicio → Widgets → Must Manager."],
-      ["new", "Alarma de batería baja: el aviso urgente (20 %) suena como un despertador suave que sube poco a poco, aunque esté en No molestar. Se activa en la campana."],
+      ["new", "Widget para la pantalla de inicio: SOC, consumo y autonomía sin abrir la app. Mantén pulsado un hueco de la pantalla de inicio → Widgets → Must Manager."],
+      ["new", "Alarma de batería baja: al 20 % suena como un despertador suave, aunque esté en No molestar. Se activa en la campana."],
       ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y guárdalo en una lista."],
-      ["new", "Compatible con baterías de 48 V (16 celdas), como el Must HBP3300 TLV. Antes decía «valores fuera de rango» y no mostraba datos."],
-      ["new", "La app reconoce sola tu batería: número de celdas, capacidad y kWh."],
-      ["new", "Aviso si tienes varias baterías en paralelo (por ahora solo se muestra la batería 1)."],
-      ["new", "Ajustes nuevos en la campana: potencia del inversor y de tus paneles (para que el aviso de «llegó la corriente» no salte por el sol)."],
-      ["new", "Esta ventana de novedades después de cada actualización."],
-      ["fix", "Los medidores de «Esta noche» ya no se cortan ni se deforman en vertical o al girar la pantalla."],
-      ["imp", "La autonomía usa el consumo medio de los últimos 30 minutos: más realista y estable (antes 5 min, y se disparaba con la nevera parada). Al abrir la app ya sale estable, con el historial."],
-      ["imp", "Los KPIs muestran de fondo una gráfica suave de los últimos 15 minutos."],
-      ["imp", "Alto contraste sin bordes: fondo más oscuro y tarjetas más claras."],
-      ["imp", "El color del voltaje se calcula por celda, así vale para cualquier batería."],
-      ["imp", "Al exportar a Excel salen tantas columnas de celdas como tenga tu batería."],
-      ["imp", "En el Excel y el CSV, la fecha y la hora van en columnas separadas: más fácil filtrar por día."],
-      ["imp", "Nuevo diseño de las ventanas (Acerca de, Personalizar, novedades…): centradas, con borde de neón y animación al abrir y cerrar."]
+      ["new", "Compatible con baterías de 48 V, como el Must HBP3300 TLV. La app reconoce sola tu batería (celdas, capacidad y kWh) y avisa si hay varias en paralelo."],
+      ["new", "Ajustes de la potencia del inversor y de tus paneles en la campana."],
+      ["imp", "Autonomía más realista y estable: usa el consumo medio de los últimos 30 minutos."],
+      ["imp", "Excel más cómodo: fecha y hora en columnas separadas y una columna por cada celda de tu batería."],
+      ["imp", "Retoques visuales: gráfica de fondo en los indicadores, ventanas nuevas, mejor alto contraste y medidores de «Esta noche» que ya no se cortan."]
     ]
   }
 ];
