@@ -45,7 +45,9 @@
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   header h1 { font-size: 28px; font-weight: 800; margin: 0; flex: 1; letter-spacing: .3px; }
   header h1 small { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 8px; letter-spacing: 0; }
-  @media (max-width: 480px) { header h1 { font-size: 22px; } }
+  /* Móvil: el título en su línea y los botones debajo, a la derecha (en la APK son 4 iconos + Conectar) */
+  @media (max-width: 480px) { header { flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+    header h1 { font-size: 24px; flex-basis: 100%; } }
   button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 10px 18px;
     background: var(--acc); color: var(--on-acc); cursor: pointer; }
   button.secondary { background: var(--line); color: var(--text); }
@@ -154,6 +156,16 @@
   .set .times { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
   .set .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .set .saved { color: var(--acc); font-size: 13px; }
+  /* Acerca de */
+  .about { font-size: 14px; line-height: 1.55; }
+  .about .aboutHead { margin-top: 12px; font-size: 22px; }
+  .about .aboutHead span { color: var(--muted); font-size: 14px; margin-left: 6px; }
+  .about p { margin: 8px 0; }
+  .about ul { margin: 8px 0 12px; padding-left: 20px; }
+  .about dl { max-width: 420px; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .about dd { text-align: left; }
+  .about a { color: var(--acc); font-weight: 600; }
+  .about .sub { color: var(--muted); font-size: 12px; }
   /* Tarjeta del SOC cuadrada (su lado ≈ el alto de los cuatro KPIs) */
   .hero { display: grid; grid-template-columns: 252px 1fr; gap: 14px; margin-bottom: 14px; }
   .hero .soc { min-height: 252px; }
@@ -229,8 +241,30 @@
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
   </button>
+  <button class="icon" id="aboutBtn" title="Acerca de" aria-label="Acerca de Must Manager" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></svg>
+  </button>
   <button id="btn">Conectar</button>
 </header>
+
+<div class="card settings about" id="aboutCard" hidden>
+  <h2>Acerca de <button class="icon close" id="aClose" aria-label="Cerrar">✕</button></h2>
+  <div class="aboutHead"><b>Must Manager</b> <span id="aboutVer"></span></div>
+  <p>Monitor de la batería LiFePO4 de los equipos solares <b>Must HBP3000 LV</b>. Lee el BMS por Bluetooth,
+    guarda el historial en el dispositivo, calcula si llegas al amanecer y exporta los datos a CSV o Excel.</p>
+  <ul>
+    <li><b>Solo lectura:</b> nunca cambia la configuración ni las protecciones del BMS.</li>
+    <li><b>Sin internet:</b> todo funciona y se guarda en el dispositivo.</li>
+    <li>Cierra <b>BMS tools</b> antes de conectar: el BMS admite una sola conexión.</li>
+  </ul>
+  <dl>
+    <dt>Autor</dt><dd>Jhonny</dd>
+    <dt>Contacto</dt><dd><a id="aboutMail" href="mailto:yonivaldes82@gmail.com?subject=Must%20Manager">yonivaldes82@gmail.com</a></dd>
+  </dl>
+  <p class="sub">¿Ideas, fallos o algo que no se entiende? Escríbeme, me ayuda a mejorarla.<br>
+    App no oficial, sin relación con MUST Power. Úsala bajo tu responsabilidad.</p>
+</div>
 
 <div class="card settings" id="themeCard" hidden>
   <h2>Personalizar <button class="icon close" id="tClose" aria-label="Cerrar">✕</button></h2>
@@ -1117,10 +1151,17 @@
     $("bell").hidden = true;
   }
 
+  // Acerca de: versión y asunto del correo con la versión (para saber qué versión usa quien escribe).
+  $("aboutVer").textContent = $("ver").textContent;
+  $("aboutMail").href = "mailto:yonivaldes82@gmail.com?subject=" + encodeURIComponent("Must Manager " + $("ver").textContent);
+  $("aboutBtn").addEventListener("click", function () { togglePanel("aboutCard", "aboutBtn"); });
+  $("aClose").addEventListener("click", function () { togglePanel("aboutCard", "aboutBtn", false); });
+  if (/[?&]panel=about/.test(location.search)) togglePanel("aboutCard", "aboutBtn", true);
+
   // Paneles de la cabecera (exportar y ajustes): solo uno abierto a la vez.
   function togglePanel(cardId, btnId, force) {
     var open = typeof force === "boolean" ? force : $(cardId).hidden;
-    [["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"]].forEach(function (p) {
+    [["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"], ["aboutCard", "aboutBtn"]].forEach(function (p) {
       $(p[0]).hidden = true;
       $(p[1]).setAttribute("aria-expanded", "false");
     });

@@ -60,6 +60,22 @@ public class MainActivity extends Activity implements BmsClient.Listener {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         web.setWebViewClient(new WebViewClient() {
+            /** Enlaces: "mailto:" abre la app de correo (Acerca de); cualquier otro se ignora (la app no navega fuera). */
+            @Override
+            @SuppressWarnings("deprecation")
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && url.startsWith("mailto:")) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_SENDTO, android.net.Uri.parse(url)));
+                    } catch (android.content.ActivityNotFoundException e) {
+                        android.widget.Toast.makeText(MainActivity.this, "No hay ninguna app de correo instalada",
+                                android.widget.Toast.LENGTH_LONG).show();
+                    }
+                    return true;
+                }
+                return url == null || !url.startsWith("file:///android_asset/");
+            }
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
