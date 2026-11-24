@@ -163,10 +163,19 @@
   /* Acerca de: ventana emergente centrada sobre un fondo oscuro */
   .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
     padding: 16px; background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px); animation: modalFade .18s ease-out; }
+  /* Borde de neón con el color de acento de la paleta, y entrada creciendo de pequeño a grande
+     con un ligero rebote al final (no un simple fundido). */
   .modal .about { width: 100%; max-width: 400px; max-height: calc(100vh - 32px); overflow-y: auto; margin: 0;
-    padding: 22px 20px 18px; box-shadow: 0 18px 50px rgba(0, 0, 0, .55); animation: modalPop .2s ease-out; }
+    padding: 22px 20px 18px; border: 1px solid color-mix(in srgb, var(--acc) 70%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 35%, transparent), 0 0 18px color-mix(in srgb, var(--acc) 45%, transparent),
+      0 0 46px color-mix(in srgb, var(--acc) 22%, transparent), 0 18px 50px rgba(0, 0, 0, .55);
+    transform-origin: 50% 50%; animation: modalPop .42s cubic-bezier(.2, .9, .3, 1.25) both; }
   @keyframes modalFade { from { opacity: 0; } }
-  @keyframes modalPop { from { opacity: 0; transform: scale(.94); } }
+  @keyframes modalPop {
+    0% { opacity: 0; transform: scale(.35); }
+    55% { opacity: 1; }
+    100% { opacity: 1; transform: scale(1); }
+  }
   @media (prefers-reduced-motion: reduce) { .modal, .modal .about { animation: none; } }
   body.modalOpen { overflow: hidden; }
   .about { position: relative; font-size: 14px; line-height: 1.55; text-align: center; }
@@ -182,9 +191,10 @@
   .about .aboutOk { margin-top: 14px; min-width: 140px; }
   .about .linkBtn { background: none; color: var(--acc); padding: 4px 8px; font-size: 13px; }
   /* Medidor de aparatos */
-  .apps .empty { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 10px; }
-  .apps .appList { margin-top: 12px; }
-  .apps .appsActions { margin-top: 14px; }
+  .modal .apps { max-width: 460px; }
+  .apps .empty { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 14px; }
+  .apps .appList { margin-top: 16px; text-align: left; grid-template-columns: 1fr; }
+  .apps .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
   .appList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
   .appItem { display: flex; align-items: center; gap: 10px; background: var(--tile); border-radius: 10px; padding: 10px 12px; }
   .appItem .nm { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -351,10 +361,15 @@
 </div>
 </div>
 
-<div class="card settings apps" id="appsCard" hidden>
-  <h2>Mis aparatos <button class="icon close" id="appsClose" aria-label="Cerrar">✕</button></h2>
+<div class="modal" id="appsCard" hidden>
+<div class="card settings about apps" role="dialog" aria-modal="true" aria-labelledby="appsTitle">
+  <button class="icon close" id="appsClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">🔌</div>
+  <div class="newsVer" id="appsTitle">Mis aparatos</div>
+  <div class="newsSub">Lo que gasta cada aparato de tu casa</div>
   <div id="appList"></div>
-  <div class="appsActions"><button id="mStart">＋ Medir un aparato</button></div>
+  <div class="btns"><button id="mStart">＋ Medir un aparato</button><button class="secondary" id="appsOk">Cerrar</button></div>
+</div>
 </div>
 
 <div class="card settings" id="themeCard" hidden>
@@ -1327,7 +1342,8 @@
   $("aboutCard").addEventListener("click", function (e) { if (e.target === this) closeAbout(); });
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter(); else if (!$("aboutCard").hidden) closeAbout();
+    if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
+    else if (!$("appsCard").hidden) closeApps(); else if (!$("aboutCard").hidden) closeAbout();
   });
 
   // ---------------------------------------------------------------- medidor de aparatos
@@ -1456,16 +1472,20 @@
   }
   function connected() { return $("status").dataset.state === "connected" && !!last.basic; }
   function openMeter() {
-    meter = { stage: "ready", base: [], on: [], lastAt: last.basic ? Date.now() : 0, sun: false, hits: 0 };
+    var fromApps = !$("appsCard").hidden;
+    if (fromApps) togglePanel("appsCard", "appsBtn", false);
+    meter = { fromApps: fromApps, stage: "ready", base: [], on: [], lastAt: last.basic ? Date.now() : 0, sun: false, hits: 0 };
     $("mLive").innerHTML = last.basic ? fmt(houseW(last.basic), 0) + "<span>W</span>" : "--";
     meterShow("ready");
     $("meterCard").hidden = false;
     document.body.classList.add("modalOpen");
   }
   function closeMeter() {
+    var back = meter && meter.fromApps;
     meter = null;
     $("meterCard").hidden = true;
     document.body.classList.remove("modalOpen");
+    if (back) togglePanel("appsCard", "appsBtn", true); // vuelve a la lista, ya con el aparato nuevo
   }
   function saveMeter() {
     var name = $("mName").value.trim();
@@ -1478,7 +1498,10 @@
   $("mName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveMeter(); });
   $("mStart").addEventListener("click", openMeter);
   $("appsBtn").addEventListener("click", function () { togglePanel("appsCard", "appsBtn"); });
-  $("appsClose").addEventListener("click", function () { togglePanel("appsCard", "appsBtn", false); });
+  function closeApps() { togglePanel("appsCard", "appsBtn", false); }
+  $("appsClose").addEventListener("click", closeApps);
+  $("appsOk").addEventListener("click", closeApps);
+  $("appsCard").addEventListener("click", function (e) { if (e.target === this) closeApps(); });
   if (/[?&]panel=aparatos/.test(location.search)) togglePanel("appsCard", "appsBtn", true);
   $("mClose").addEventListener("click", closeMeter);
   $("meterCard").addEventListener("click", function (e) { if (e.target === this) closeMeter(); });
@@ -1552,9 +1575,10 @@
     });
     $(cardId).hidden = !open;
     $(btnId).setAttribute("aria-expanded", String(open));
-    // Acerca de es una ventana emergente: no hace falta subir, pero sí bloquear el scroll de detrás.
-    document.body.classList.toggle("modalOpen", open && cardId === "aboutCard");
-    if (open && cardId !== "aboutCard") window.scrollTo({ top: 0, behavior: "smooth" });
+    // Acerca de y Mis aparatos son ventanas emergentes: no hace falta subir, pero sí bloquear el scroll de detrás.
+    var isModal = cardId === "aboutCard" || cardId === "appsCard";
+    document.body.classList.toggle("modalOpen", open && isModal);
+    if (open && !isModal) window.scrollTo({ top: 0, behavior: "smooth" });
     if (open && cardId === "aboutCard") $("aOk").focus();
     if (open && cardId === "exportCard") updateExportCount();
   }
