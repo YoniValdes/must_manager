@@ -197,6 +197,12 @@
   .about .linkBtn { background: none; color: var(--acc); padding: 4px 8px; font-size: 13px; }
   /* Medidor de aparatos */
   .modal .apps { max-width: 460px; }
+  /* Personalizar: fondo más claro y sin difuminar, para ver cómo cambia la app de detrás al elegir */
+  .modal.themeModal { background: rgba(0, 0, 0, .3); backdrop-filter: none; }
+  .modal .theme { max-width: 540px; }
+  .theme .pals { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .theme .themeToggles { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+  .theme .sub { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 12px 0 0; }
   .apps .empty { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 14px; }
   .apps .appList { margin-top: 16px; text-align: left; grid-template-columns: 1fr; }
   .apps .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
@@ -377,15 +383,21 @@
 </div>
 </div>
 
-<div class="card settings" id="themeCard" hidden>
-  <h2>Personalizar <button class="icon close" id="tClose" aria-label="Cerrar">✕</button></h2>
+<div class="modal themeModal" id="themeCard" hidden>
+<div class="card settings about theme" role="dialog" aria-modal="true" aria-labelledby="themeTitle">
+  <button class="icon close" id="tClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">🎨</div>
+  <div class="newsVer" id="themeTitle">Personalizar</div>
+  <div class="newsSub">Elige los colores de la app</div>
   <div class="pals" id="pals"></div>
-  <div class="actions" style="margin-top:14px">
+  <div class="themeToggles">
     <button class="toggle" id="neonT" aria-pressed="true">✨ Neón</button>
     <button class="toggle" id="hcT" aria-pressed="false">◐ Alto contraste</button>
   </div>
-  <p class="sub" style="margin:10px 0 0">La tarjeta de autonomía conserva los colores del cielo según la hora.
+  <p class="sub">La tarjeta de autonomía conserva los colores del cielo según la hora.
     Los colores de estado (verde, ámbar, rojo, azul) tampoco cambian, para que siempre signifiquen lo mismo.</p>
+  <button id="tOk" class="aboutOk">Aceptar</button>
+</div>
 </div>
 
 <div class="card settings" id="exportCard" hidden>
@@ -974,7 +986,10 @@
   $("neonT").addEventListener("click", function () { theme.neon = !theme.neon; applyTheme(); loadHistory(); });
   $("hcT").addEventListener("click", function () { theme.hc = !theme.hc; applyTheme(); loadHistory(); });
   $("themeBtn").addEventListener("click", function () { renderPalettes(); togglePanel("themeCard", "themeBtn"); });
-  $("tClose").addEventListener("click", function () { togglePanel("themeCard", "themeBtn", false); });
+  function closeTheme() { togglePanel("themeCard", "themeBtn", false); }
+  $("tClose").addEventListener("click", closeTheme);
+  $("tOk").addEventListener("click", closeTheme);
+  $("themeCard").addEventListener("click", function (e) { if (e.target === this) closeTheme(); });
   try {
     var saved = JSON.parse(localStorage.getItem("mm-theme") || "null");
     if (saved) theme = { id: saved.id || "original", neon: saved.neon !== false, hc: !!saved.hc };
@@ -1348,7 +1363,8 @@
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
-    else if (!$("appsCard").hidden) closeApps(); else if (!$("aboutCard").hidden) closeAbout();
+    else if (!$("appsCard").hidden) closeApps(); else if (!$("themeCard").hidden) closeTheme();
+    else if (!$("aboutCard").hidden) closeAbout();
   });
 
   // ---------------------------------------------------------------- medidor de aparatos
@@ -1575,7 +1591,7 @@
   // Ventanas emergentes: se abren y se cierran siempre con estas dos funciones, para que el cierre
   // espere a que termine su animación antes de ocultarlas.
   // (Funciones y no variables: la ventana de novedades se abre al arrancar, antes de llegar aquí.)
-  function isModalId(id) { return id === "aboutCard" || id === "appsCard" || id === "newsCard" || id === "meterCard"; }
+  function isModalId(id) { return id === "aboutCard" || id === "appsCard" || id === "newsCard" || id === "meterCard" || id === "themeCard"; }
   function modalCloseMs() { return 240; }
   function reducedMotion() { return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches); }
   function showModal(el) {
