@@ -79,6 +79,11 @@
   .dev .sig i { width: 4px; background: var(--line); border-radius: 1px; }
   .dev .sig i.on { background: var(--acc); }
   .picker .none { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+  /* Cada BMS de la lista con su botón de lápiz para ponerle un nombre propio */
+  .devRow { display: flex; align-items: stretch; gap: 8px; margin-top: 8px; }
+  .devRow .dev { margin-top: 0; flex: 1; min-width: 0; }
+  .devRow .devEdit { width: 48px; height: auto; border-radius: 10px; background: var(--tile); border: 1px solid var(--line); font-size: 18px; }
+  .modal .rename { max-width: 380px; }
   /* ---- Tarjeta de autonomía: cielo según la hora + número en neón (color = situación) ---- */
   .eta { position: relative; overflow: hidden; border-radius: var(--radius); margin-bottom: 14px; min-height: 196px;
     --sky-top: #070b1a; --sky-bottom: #17203b; --neon: #e6edf3;
@@ -239,7 +244,7 @@
   .meter .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
   .meter .dots i.on { background: var(--acc); }
   .meter .note { font-size: 12px; line-height: 1.45; color: var(--warn); margin: 6px 0; }
-  .meter input[type=text] { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+  .meter input[type=text], .rename input[type=text] { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 10px 12px; border-radius: 10px;
     border: 1px solid var(--line); background: var(--tile); color: var(--text); font: inherit; font-size: 15px; text-align: center; }
   .meter .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
   /* Novedades tras actualizar */
@@ -481,6 +486,19 @@
       <span class="saved" id="sSaved"></span></div>
   </div>
   <button class="secondary aboutOk" id="sOk">Cerrar</button>
+</div>
+</div>
+
+<div class="modal" id="renameCard" hidden>
+<div class="card settings about rename" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+  <button class="icon close" id="rClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">✏️</div>
+  <div class="newsVer" id="renameTitle">Nombre del BMS</div>
+  <div class="newsSub" id="renameSub"></div>
+  <input type="text" id="rName" maxlength="30" placeholder="Por ejemplo: Casa, Taller, Mamá…">
+  <p class="sub">Solo cambia cómo se ve en esta app; en el BMS no se toca nada.
+    Déjalo vacío para volver al nombre original.</p>
+  <div class="btns"><button id="rSave">Guardar</button><button class="secondary" id="rCancel">Cancelar</button></div>
 </div>
 </div>
 
@@ -959,7 +977,7 @@
   function setState(s, message) {
     state = s;
     $("status").dataset.state = s;
-    if (message) $("msg").textContent = message;
+    if (message) $("msg").textContent = withAliases(message);
     $("btn").textContent = s === "scanning" ? "Cancelar" : isBusy(s) ? "Desconectar" : "Conectar";
     $("btn").className = isBusy(s) ? "secondary" : "";
     // En la web la lista la pone Chrome; la nuestra es solo para la APK.
@@ -1060,6 +1078,53 @@
 
   // ---------------------------------------------------------------- lista de dispositivos (APK)
   var found = {};
+  // Nombres propios de cada BMS ("Casa", "Taller"…), guardados solo en este dispositivo y nunca en el BMS.
+  // Por dirección Bluetooth (MAC), que no cambia: {MAC: {alias, name}} (name = el original, p. ej. PC-BDC4).
+  var bmsNames = {};
+  try { bmsNames = JSON.parse(localStorage.getItem("mm-bms-names") || "{}") || {}; } catch (e) { bmsNames = {}; }
+  function bmsLabel(d) { var n = bmsNames[d.address]; return (n && n.alias) || d.name || "Sin nombre"; }
+  // "Conectado a PC-BDC4" → "Conectado a Casa" (los mensajes de estado vienen de Java con el nombre original).
+  function withAliases(msg) {
+    for (var a in bmsNames) {
+      var n = bmsNames[a];
+      if (n && n.alias && n.name) msg = msg.split(n.name).join(n.alias);
+    }
+    return msg;
+  }
+  var renaming = null;
+  function openRename(addr) {
+    var d = found[addr] || { address: addr, name: (bmsNames[addr] || {}).name };
+    renaming = d;
+    $("renameSub").textContent = (d.name || "Sin nombre") + " · " + addr;
+    $("rName").value = (bmsNames[addr] || {}).alias || "";
+    showModal($("renameCard"));
+    document.body.classList.add("modalOpen");
+    setTimeout(function () { $("rName").focus(); }, 50);
+  }
+  function closeRename() {
+    hideModal($("renameCard"));
+    document.body.classList.remove("modalOpen");
+    renaming = null;
+  }
+  function saveRename() {
+    if (!renaming) return;
+    var alias = $("rName").value.trim().slice(0, 30);
+    if (alias) bmsNames[renaming.address] = { alias: alias, name: renaming.name || "" };
+    else delete bmsNames[renaming.address];
+    try { localStorage.setItem("mm-bms-names", JSON.stringify(bmsNames)); } catch (e) { /* sin almacenamiento */ }
+    closeRename();
+    renderDevices();
+  }
+  $("rSave").addEventListener("click", saveRename);
+  $("rCancel").addEventListener("click", closeRename);
+  $("rClose").addEventListener("click", closeRename);
+  $("rName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveRename(); });
+  $("renameCard").addEventListener("click", function (e) { if (e.target === this) closeRename(); });
+  // Prueba de diseño en el navegador: ?panel=renombrar (con un BMS de ejemplo)
+  if (/[?&]panel=renombrar/.test(location.search)) setTimeout(function () {
+    found["7C:3E:82:1B:BD:C4"] = { name: "PC-BDC4", address: "7C:3E:82:1B:BD:C4", rssi: -62, last: true };
+    $("picker").hidden = false; renderDevices(); openRename("7C:3E:82:1B:BD:C4");
+  }, 0);
   function signalBars(rssi) { return rssi >= -60 ? 4 : rssi >= -70 ? 3 : rssi >= -80 ? 2 : 1; }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
   function renderDevices() {
@@ -1068,12 +1133,17 @@
     $("devices").innerHTML = list.length ? list.map(function (d) {
       var bars = signalBars(d.rssi), sig = "";
       for (var i = 1; i <= 4; i++) sig += "<i class='" + (i <= bars ? "on" : "") + "' style='height:" + (i * 4) + "px'></i>";
-      return "<button class='dev' data-addr='" + esc(d.address) + "'><div><div class='name'>" + esc(d.name || "Sin nombre") +
-        (d.last ? "<span class='tag'>último usado</span>" : "") + "</div><div class='addr'>" + esc(d.address) +
-        " · " + d.rssi + " dBm</div></div><span class='sig'>" + sig + "</span></button>";
+      var renamed = bmsNames[d.address] && bmsNames[d.address].alias;
+      return "<div class='devRow'><button class='dev' data-addr='" + esc(d.address) + "'><div><div class='name'>" + esc(bmsLabel(d)) +
+        (d.last ? "<span class='tag'>último usado</span>" : "") + "</div><div class='addr'>" +
+        (renamed ? esc(d.name || "") + " · " : "") + esc(d.address) +
+        " · " + d.rssi + " dBm</div></div><span class='sig'>" + sig + "</span></button>" +
+        "<button class='icon devEdit' data-addr='" + esc(d.address) + "' aria-label='Cambiar el nombre' title='Cambiar el nombre'>✏️</button></div>";
     }).join("") : "<div class='none'>Buscando…</div>";
   }
   $("devices").addEventListener("click", function (e) {
+    var ed = e.target.closest(".devEdit");
+    if (ed) { openRename(ed.dataset.addr); return; }
     var b = e.target.closest(".dev");
     if (b && hasBridge) window.Android.connectTo(b.dataset.addr);
   });
@@ -1571,7 +1641,8 @@
   if (/[?&]panel=exportar/.test(location.search)) setTimeout(function () { togglePanel("exportCard", "exportBtn", true); }, 0);
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
+    if (!$("renameCard").hidden) closeRename();
+    else if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
     else if (!$("appsCard").hidden) closeApps(); else if (!$("themeCard").hidden) closeTheme();
     else if (!$("settingsCard").hidden) closeSettings(); else if (!$("exportCard").hidden) closeExport();
     else if (!$("aboutCard").hidden) closeAbout();
