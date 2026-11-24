@@ -183,9 +183,7 @@
   .tile.kpi[data-st="charge"] { --st: #38bdf8; }
   .tile.kpi[data-st] b, .tile.kpi[data-st] .sub { color: var(--st); }
   .tile.kpi[data-st] b small { color: inherit; opacity: .75; }
-  /* Sin brillo en los números (demasiado llamativo). En rojo, la tarjeta entera se rellena para que salte a la vista. */
-  .tile.kpi[data-st="bad"] { background: #b91c1c; }
-  .tile.kpi[data-st="bad"] b, .tile.kpi[data-st="bad"] .sub, .tile.kpi[data-st="bad"] label { color: #fff; }
+  /* Sin brillo ni relleno: el estado se ve solo en el color del número y del texto de abajo (igual en verde, ámbar y rojo). */
   body.hc .tile.kpi[data-st] { border: 2px solid var(--st); }
 
   h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía del panel</title>
+<style>
+  :root {
+    --bg: #0b1014; --card: #182027; --tile: #0f1418; --line: #26313a;
+    --text: #e6edf3; --muted: #8b98a5;
+    --good: #4ade80; --warn: #fbbf24; --bad: #f87171; --charge: #38bdf8; --acc: #22c55e;
+    --call: #121a20; --pin: #facc15;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif; }
+  .page { width: 1900px; padding: 56px 60px 48px; position: relative; }
+  .head { text-align: center; margin-bottom: 34px; }
+  .head h1 { margin: 0; font-size: 58px; letter-spacing: .5px; }
+  .head h1 span { color: var(--acc); }
+  .head p { margin: 10px 0 0; font-size: 24px; color: var(--muted); }
+  .legend { display: flex; justify-content: center; gap: 30px; margin-top: 22px; font-size: 21px; }
+  .legend i { display: inline-block; width: 18px; height: 18px; border-radius: 5px; vertical-align: -2px; margin-right: 8px; }
+
+  .stage { display: grid; grid-template-columns: 500px 1fr 500px; gap: 0; position: relative; }
+  .col { position: relative; }
+  .mockwrap { display: flex; justify-content: center; }
+
+  /* ---------- esquema del dashboard ---------- */
+  .mock { width: 720px; background: #0f1418; border: 3px solid #2f3b45; border-radius: 26px; padding: 18px; position: relative;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  .m-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 0 22px 0 26px; }
+  .m-head h3 { margin: 0; font-size: 24px; flex: 1; }
+  .m-head h3 small { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .ib { width: 36px; height: 36px; border-radius: 10px; background: var(--card); display: grid; place-items: center; }
+  .ib svg { width: 20px; height: 20px; stroke: var(--text); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn { background: var(--acc); color: #05210f; font-weight: 700; padding: 8px 14px; border-radius: 10px; font-size: 15px; }
+  .m-status { background: var(--card); border-radius: 12px; padding: 9px 24px; font-size: 14px; display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .m-status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); }
+  .m-status .t { margin-left: auto; color: var(--muted); }
+
+  .m-eta { position: relative; height: 150px; border-radius: 14px; margin-bottom: 12px;
+    background: linear-gradient(#0b1533, #1c2b5a 70%, #2b3d72); }
+  .m-eta svg { position: absolute; inset: 0; width: 100%; height: 100%; clip-path: inset(0 round 14px); }
+  .m-eta .c { position: absolute; left: 24px; top: 14px; }
+  .m-eta .l { font-size: 13px; color: #c7d2fe; }
+  .m-eta .b { font-size: 38px; font-weight: 800; line-height: 1.1; }
+  .m-eta .s { font-size: 13px; color: #dbeafe; }
+  .chip { display: inline-block; margin-top: 6px; font-size: 12px; padding: 3px 9px; border-radius: 99px; background: rgba(74,222,128,.18); color: var(--good); }
+
+  .m-hero { display: grid; grid-template-columns: 200px 1fr; gap: 12px; margin-bottom: 12px; }
+  .m-card { background: var(--card); border-radius: 14px; padding: 12px 22px; }
+  .m-soc { display: grid; place-items: center; height: 200px; position: relative; }
+  .m-soc .v { position: absolute; text-align: center; }
+  .m-soc .v b { font-size: 40px; display: block; line-height: 1; }
+  .m-soc .v span { font-size: 13px; color: var(--muted); }
+  .m-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
+  .m-hero { position: relative; }
+  .k { background: var(--tile); border-radius: 10px; text-align: center; padding: 10px 6px; }
+  .k label { font-size: 12px; color: var(--muted); display: block; }
+  .k b { font-size: 28px; font-weight: 800; display: block; line-height: 1.15; }
+  .k b small { font-size: 13px; opacity: .75; }
+  .k .sub { font-size: 11px; }
+  .g { color: var(--good); } .w { color: var(--warn); } .r { color: var(--bad); } .bl { color: var(--charge); } .mu { color: var(--muted); }
+
+  .m-h2 { font-size: 15px; font-weight: 700; margin: 0 0 8px; display: flex; }
+  .m-h2 .badge { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 13px; }
+  .m-night { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .gc { background: var(--tile); border-radius: 10px; text-align: center; padding: 8px 4px 6px; }
+  .gc label { font-size: 11px; color: var(--muted); }
+  .gc svg { width: 100%; height: 50px; }
+  .gc .sub { font-size: 10px; color: var(--muted); }
+  .block { margin-bottom: 12px; }
+  .m-chart svg { width: 100%; height: 110px; display: block; }
+  .m-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .cell { background: var(--tile); border-radius: 8px; padding: 6px; text-align: center; font-size: 15px; font-weight: 700; }
+  .cell span { display: block; font-size: 10px; color: var(--muted); font-weight: 400; }
+  .m-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; }
+  .dl dt { color: var(--muted); } .dl dd { margin: 0; text-align: right; }
+
+  /* marcadores numerados sobre el esquema */
+  .pin { position: absolute; width: 30px; height: 30px; border-radius: 50%; background: var(--pin); color: #1a1400;
+    font-weight: 800; font-size: 16px; display: grid; place-items: center; box-shadow: 0 0 0 4px rgba(250,204,21,.25); z-index: 3; }
+  .tgt { position: relative; }
+
+  /* ---------- explicaciones ---------- */
+  .call { position: absolute; width: 470px; background: var(--call); border: 1px solid #24313b; border-radius: 16px; padding: 16px 18px 16px 64px; }
+  .col.left .call { left: 0; } .col.right .call { right: 0; }
+  .call .n { position: absolute; left: 16px; top: 16px; width: 34px; height: 34px; border-radius: 50%; background: var(--pin); color: #1a1400;
+    font-weight: 800; font-size: 18px; display: grid; place-items: center; }
+  .call h4 { margin: 0 0 6px; font-size: 22px; }
+  .call p { margin: 0; font-size: 17px; line-height: 1.42; color: #c3ccd5; }
+  .call p b { color: var(--text); }
+
+  #wires { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; overflow: visible; }
+
+  .foot { margin-top: 44px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .note { background: var(--call); border: 1px solid #24313b; border-radius: 16px; padding: 18px 22px; font-size: 18px; line-height: 1.45; color: #c3ccd5; }
+  .note h5 { margin: 0 0 6px; font-size: 21px; color: var(--text); }
+  .note.ask { border-color: var(--acc); }
+  .note.ask h5 { color: var(--acc); }
+</style>
+</head>
+<body>
+<div class="page" id="page">
+  <div class="head">
+    <h1>Must <span>Manager</span> · guía del panel</h1>
+    <p>Monitor por Bluetooth de la batería del Must HBP3000 LV · funciona sin internet · solo lee, nunca cambia nada del BMS</p>
+    <div class="legend">
+      <span><i style="background:var(--good)"></i>Verde: bien / llegas al amanecer</span>
+      <span><i style="background:var(--warn)"></i>Ámbar: justo, ojo</span>
+      <span><i style="background:var(--bad)"></i>Rojo: no llegas o fuera de rango</span>
+      <span><i style="background:var(--charge)"></i>Azul: cargando</span>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="col left" id="colL"></div>
+
+    <div class="mockwrap">
+      <div class="mock" id="mock">
+        <div class="m-head tgt" id="t1">
+          <h3>Must Manager <small>0.18</small></h3>
+          <div class="ib"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/></svg></div>
+          <div class="ib"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></div>
+          <div class="ib"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+          <div class="btn">Desconectar</div>
+        </div>
+
+        <div class="m-status tgt" id="t2"><span class="dot"></span>Conectado a PC-BDC4<span class="t">22:14:05</span></div>
+
+        <div class="m-eta tgt" id="t3">
+          <svg viewBox="0 0 680 150" preserveAspectRatio="none">
+            <g fill="#fff" opacity=".8"><circle cx="300" cy="22" r="1.4"/><circle cx="380" cy="40" r="1.1"/><circle cx="460" cy="18" r="1.5"/><circle cx="420" cy="62" r="1"/><circle cx="610" cy="30" r="1.3"/><circle cx="250" cy="55" r="1"/></g>
+            <circle cx="560" cy="58" r="30" fill="#dbe4ff" opacity=".12"/>
+            <circle cx="560" cy="58" r="13" fill="#f1f5ff"/><circle cx="566" cy="53" r="12" fill="#1c2b5a"/>
+            <path d="M0 108 C 120 94, 240 102, 340 106 S 560 92, 680 102 L680 150 L0 150Z" fill="#26386b"/>
+            <path d="M0 120 C 130 110, 260 122, 390 115 S 590 108, 680 115 L680 150 L0 150Z" fill="#1d2c58"/>
+            <path d="M0 134 C 150 126, 300 138, 450 131 S 610 124, 680 130 L680 150 L0 150Z" fill="#152146"/>
+          </svg>
+          <div class="c">
+            <div class="l">Autonomía hasta el 15 %</div>
+            <div class="b">12 h 14 min</div>
+            <div class="s">Llegarías a las 10:28 · media de 5 min: 285 W</div>
+            <span class="chip">✔ Llegas al amanecer (07:00)</span>
+          </div>
+        </div>
+
+        <div class="m-hero" id="hero">
+          <div class="m-card m-soc tgt" id="t4">
+            <svg width="160" height="160" viewBox="0 0 140 140">
+              <circle cx="70" cy="70" r="60" fill="none" stroke="#26313a" stroke-width="12"/>
+              <circle cx="70" cy="70" r="60" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round"
+                stroke-dasharray="377" stroke-dashoffset="143" transform="rotate(-90 70 70)"/>
+            </svg>
+            <div class="v"><b>62</b><span>SOC %</span></div>
+          </div>
+          <div class="m-card m-tiles">
+            <div class="k tgt" id="t5"><label>Potencia</label><b class="g">285<small>W</small></b><div class="sub g">Para llegar: máx. 398 W</div></div>
+            <div class="k tgt" id="t6"><label>Corriente</label><b class="g">−10,7<small>A</small></b><div class="sub g">Saliendo</div></div>
+            <div class="k tgt" id="t7"><label>Voltaje</label><b class="g">26,53<small>V</small></b><div class="sub g">Normal · 3,32 V/celda</div></div>
+            <div class="k tgt" id="t8"><label>Restante</label><b class="g">173,6<small>Ah</small></b><div class="sub g">≈ 4,61 kWh</div></div>
+          </div>
+        </div>
+
+        <div class="m-card block tgt" id="t9">
+          <div class="m-h2">Esta noche <span class="badge">18:00 → 07:00</span></div>
+          <div class="m-night">
+            <div class="gc"><label>Energía gastada</label><svg viewBox="0 0 100 56"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#26313a" stroke-width="9" stroke-linecap="round"/><path d="M10 50 A40 40 0 0 1 36 13" fill="none" stroke="#22c55e" stroke-width="9" stroke-linecap="round"/><text x="50" y="48" fill="#e6edf3" font-size="15" font-weight="700" text-anchor="middle">1,2</text></svg><div class="sub">kWh · vas bien</div></div>
+            <div class="gc"><label>Consumo medio</label><svg viewBox="0 0 100 56"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#26313a" stroke-width="9" stroke-linecap="round"/><path d="M10 50 A40 40 0 0 1 46 10" fill="none" stroke="#22c55e" stroke-width="9" stroke-linecap="round"/><text x="50" y="48" fill="#e6edf3" font-size="15" font-weight="700" text-anchor="middle">310</text></svg><div class="sub">límite: 398 W</div></div>
+            <div class="gc"><label>Pico de consumo</label><svg viewBox="0 0 100 56"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#26313a" stroke-width="9" stroke-linecap="round"/><path d="M10 50 A40 40 0 0 1 30 16" fill="none" stroke="#22c55e" stroke-width="9" stroke-linecap="round"/><text x="50" y="48" fill="#e6edf3" font-size="15" font-weight="700" text-anchor="middle">820</text></svg><div class="sub">W a las 19:42</div></div>
+            <div class="gc"><label>Hoy entró (sol + red)</label><svg viewBox="0 0 100 56"><path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#26313a" stroke-width="9" stroke-linecap="round"/><path d="M10 50 A40 40 0 0 1 62 12" fill="none" stroke="#0284c7" stroke-width="9" stroke-linecap="round"/><text x="50" y="48" fill="#e6edf3" font-size="15" font-weight="700" text-anchor="middle">3,4</text></svg><div class="sub">kWh</div></div>
+          </div>
+        </div>
+
+        <div class="m-card block m-chart tgt" id="t10">
+          <div class="m-h2">Batería y consumo · últimas 24 horas</div>
+          <svg viewBox="0 0 660 110" preserveAspectRatio="none">
+            <line x1="0" y1="62" x2="660" y2="62" stroke="#26313a"/>
+            <g fill="#d97706" opacity=".85">
+              <rect x="0" y="62" width="200" height="14"/><rect x="200" y="62" width="40" height="22"/><rect x="240" y="62" width="60" height="10"/>
+              <rect x="520" y="62" width="60" height="18"/><rect x="580" y="62" width="80" height="12"/></g>
+            <g fill="#0284c7" opacity=".85">
+              <rect x="300" y="40" width="60" height="22"/><rect x="360" y="22" width="60" height="40"/><rect x="420" y="30" width="50" height="32"/><rect x="470" y="48" width="50" height="14"/></g>
+            <polyline points="0,40 100,52 200,66 260,74 300,76 360,62 420,36 470,24 520,22 580,30 660,40" fill="none" stroke="#16a34a" stroke-width="3"/>
+          </svg>
+        </div>
+
+        <div class="m-card block tgt" id="t11">
+          <div class="m-h2">Celdas <span class="badge g">Δ 3 mV</span></div>
+          <div class="m-cells">
+            <div class="cell">3314<span>Celda 1</span></div><div class="cell">3315<span>Celda 2</span></div>
+            <div class="cell">3316<span>Celda 3 · máx</span></div><div class="cell">3314<span>Celda 4</span></div>
+            <div class="cell">3313<span>Celda 5 · mín</span></div><div class="cell">3315<span>Celda 6</span></div>
+            <div class="cell">3314<span>Celda 7</span></div><div class="cell">3315<span>Celda 8</span></div>
+          </div>
+        </div>
+
+        <div class="m-grid2">
+          <div class="m-card tgt" id="t12">
+            <div class="m-h2">Batería</div>
+            <dl class="dl"><dt>Salud (SOH)</dt><dd>100 %</dd><dt>Ciclos</dt><dd>212</dd><dt>Capacidad total</dt><dd>280 Ah</dd>
+              <dt>Temp. celdas</dt><dd>27 °C</dd><dt>Temp. MOS</dt><dd>29 °C</dd></dl>
+          </div>
+          <div class="m-card tgt" id="t13">
+            <div class="m-h2">Estado del BMS</div>
+            <dl class="dl"><dt>Carga</dt><dd class="g">Permitida</dd><dt>Descarga</dt><dd class="g">Permitida</dd>
+              <dt>Protecciones</dt><dd>Ninguna</dd><dt>Balanceo</dt><dd>No</dd><dt>Avisos y fallos</dt><dd>Ninguno</dd></dl>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col right" id="colR"></div>
+    <svg id="wires"></svg>
+  </div>
+
+  <div class="foot">
+    <div class="note"><h5>📡 Antes de conectar</h5>Cierra la app oficial <b>BMS tools</b>: el BMS solo admite una conexión Bluetooth a la vez.</div>
+    <div class="note"><h5>🌙 Graba con la pantalla apagada</h5>La APK sigue registrando datos en segundo plano. Las gráficas y el resumen de la noche salen de ese registro.</div>
+    <div class="note ask"><h5>💬 Tu opinión cuenta</h5>¿Algo que no se entiende, un dato que echas en falta o una idea? Cuéntaselo a Jhonny.</div>
+  </div>
+</div>
+
+<script>
+  // [número, columna, título, texto]
+  var CALLS = [
+    [1, "L", "Botones de arriba", "<b>Personalizar</b> los colores (paletas, neón, alto contraste) · <b>Exportar</b> el historial a CSV o Excel · <b>Alertas y ajustes</b> (batería baja, llega o se va la corriente, no llegas al amanecer) · <b>Conectar</b> el BMS."],
+    [2, "R", "Barra de estado", "Si está <b>conectado</b>, buscando o con error, y la hora de la última lectura. Todo en gris = está reconectando."],
+    [3, "R", "Autonomía", "<b>Horas que quedan hasta el 15 %</b> (corte del inversor) con el consumo medio de los últimos 5 min, a qué hora llegarías y <b>si llegas al amanecer</b>. De día incluye el sol: es fiable de noche."],
+    [4, "L", "SOC", "<b>% de carga</b> de la batería. El anillo pasa a ámbar por debajo del 35 % y a rojo por debajo del 20 %."],
+    [5, "L", "Potencia", "<b>W que salen de la batería</b> ahora mismo. Verde: llegas al amanecer · ámbar: muy justo · rojo: no llegas. Debajo, los <b>W máximos</b> que puedes gastar para llegar."],
+    [6, "R", "Corriente", "<b>Amperios</b> de la batería, con el mismo color que Potencia: <b>Saliendo</b> (descarga) o <b>Entrando</b> (carga, en azul)."],
+    [7, "L", "Voltaje", "Voltaje del pack de 8 celdas y <b>V por celda</b>. Normal entre 24,8 y 28,4 V; rojo por debajo de 24 V o por encima de 28,8 V."],
+    [8, "R", "Restante", "<b>Ah que quedan</b> en la batería y su equivalente en <b>kWh</b>. El color sigue los avisos de batería baja (30 % y 20 %)."],
+    [9, "R", "Esta noche", "Del atardecer al amanecer: <b>kWh gastados</b> y si vas bien de ritmo, <b>consumo medio</b> frente al límite para llegar, <b>pico</b> y su hora, y lo que <b>entró hoy de sol + red</b>. De día muestra la noche anterior."],
+    [10, "R", "Gráfica de 24 horas", "<b>SOC</b> (línea verde) y la batería <b>cargando</b> (azul, arriba) o <b>descargando</b> (naranja, abajo). Se ven las horas de sol, la llegada de la corriente y el gasto de la noche."],
+    [11, "L", "Celdas", "Voltaje de las <b>8 celdas</b>. La diferencia entre la más alta y la más baja dice cómo de sanas y equilibradas están: hasta 30 mV verde, hasta 80 mV ámbar."],
+    [12, "L", "Batería", "<b>Salud (SOH)</b>, ciclos de carga, capacidad total y <b>temperaturas</b> de las celdas, de los MOS y del ambiente."],
+    [13, "R", "Estado del BMS", "Si la <b>carga y la descarga</b> están permitidas, protecciones activas, balanceo de celdas, <b>avisos y fallos</b>, modelo y nº de serie."]
+  ];
+
+  var stage = document.getElementById("stage");
+  var cols = { L: document.getElementById("colL"), R: document.getElementById("colR") };
+  var GAP = 18;
+  // Potencia y Voltaje están detrás del SOC: su línea entra por el hueco de encima o de debajo del bloque
+  var VIA = { 5: "top", 7: "bottom" };
+  function gapY(via) { var h = rel(document.getElementById("hero"));
+    return via === "top" ? h.y - 6 : h.y + h.h + 6; }
+
+  function rel(el) { var s = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
+    return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height }; }
+
+  // Crear las explicaciones y los marcadores
+  var items = CALLS.map(function (c) {
+    var div = document.createElement("div");
+    div.className = "call";
+    div.innerHTML = "<div class='n'>" + c[0] + "</div><h4>" + c[2] + "</h4><p>" + c[3] + "</p>";
+    cols[c[1]].appendChild(div);
+    var t = document.getElementById("t" + c[0]);
+    var pin = document.createElement("div");
+    pin.className = "pin"; pin.textContent = c[0];
+    // marcador en el borde de la tarjeta que mira hacia su explicación
+    var via = VIA[c[0]];
+    if (via === "top") { pin.style.top = "-15px"; pin.style.left = "22px"; }
+    else if (via === "bottom") { pin.style.bottom = "-15px"; pin.style.left = "22px"; }
+    else { pin.style.top = "50%"; pin.style.marginTop = "-15px";
+      if (c[1] === "L") pin.style.left = "-15px"; else pin.style.right = "-15px"; }
+    t.appendChild(pin);
+    return { n: c[0], side: c[1], el: div, tgt: t, pin: pin, via: via };
+  });
+
+  // Colocar cada explicación a la altura de su tarjeta, empujando hacia abajo si se solapan
+  ["L", "R"].forEach(function (side) {
+    var list = items.filter(function (i) { return i.side === side; });
+    var y = 0;
+    list.forEach(function (i) {
+      var p = rel(i.pin), cyT = i.via ? gapY(i.via) : p.y + p.h / 2, want = cyT - i.el.offsetHeight / 2;
+      i.top = Math.max(want, y);
+      y = i.top + i.el.offsetHeight + GAP;
+    });
+    // si la columna se pasa del final, subir lo necesario desde abajo
+    var mockBottom = rel(document.getElementById("mock")).y + rel(document.getElementById("mock")).h;
+    var limit = Math.max(mockBottom, 0);
+    for (var k = list.length - 1; k >= 0; k--) {
+      var i = list[k], bottom = i.top + i.el.offsetHeight;
+      if (bottom > limit) i.top -= bottom - limit;
+      limit = i.top - GAP;
+    }
+    list.forEach(function (i) { i.el.style.top = i.top + "px"; });
+  });
+
+  // Líneas desde cada explicación hasta su marcador
+  var svg = document.getElementById("wires");
+  svg.setAttribute("width", stage.offsetWidth); svg.setAttribute("height", stage.offsetHeight);
+  var out = "";
+  items.forEach(function (i) {
+    var c = rel(i.el), p = rel(i.pin);
+    if (i.via) {
+      var gx = p.x + p.w / 2, gy = gapY(i.via), cy2 = Math.min(Math.max(gy, c.y + 26), c.y + c.h - 26), ex = c.x + c.w;
+      var py2 = i.via === "top" ? p.y : p.y + p.h;
+      out += "<path d='M" + ex + " " + cy2 + " H" + (ex + 24) + " L" + (ex + 48) + " " + gy + " H" + gx + " V" + py2 +
+        "' fill='none' stroke='#facc15' stroke-width='2.5' stroke-linejoin='round' opacity='.85'/>";
+      out += "<circle cx='" + ex + "' cy='" + cy2 + "' r='5' fill='#facc15'/>";
+      return;
+    }
+    var px = p.x + p.w / 2 + (i.side === "L" ? -p.w / 2 : p.w / 2), py = p.y + p.h / 2;
+    var cx = i.side === "L" ? c.x + c.w : c.x, cy = Math.min(Math.max(py, c.y + 26), c.y + c.h - 26);
+    var mx = i.side === "L" ? cx + 24 : cx - 24;
+    out += "<path d='M" + cx + " " + cy + " H" + mx + " L" + (px + (i.side === "L" ? -14 : 14)) + " " + py + " H" + px +
+      "' fill='none' stroke='#facc15' stroke-width='2.5' stroke-linejoin='round' opacity='.85'/>";
+    out += "<circle cx='" + cx + "' cy='" + cy + "' r='5' fill='#facc15'/>";
+  });
+  svg.innerHTML = out;
+  document.title = "LISTO " + document.getElementById("page").offsetHeight;
+</script>
+</body>
+</html>
