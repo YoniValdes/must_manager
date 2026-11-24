@@ -51,7 +51,8 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - Arquitectura: interfaz en `app/` (HTML + JS) y Java solo para Bluetooth/almacenamiento, igual que el proyecto `analitica` (`D:\Git_Projects\analitica`). **Sin Gradle ni Kotlin** para no depender de descargas grandes; Java 8 (`--release 8`, sin lambdas).
 - SDK portable en `D:\Android` (`jdk17`, `sdk` con build-tools 35.0.0, platform android-34 y platform-tools/adb; zips en `descargas\`).
 - Compilar: `.\android\build.ps1` (→ `dist\`), y con `-Install` la instala por USB con adb. Firma en `secretos\` (fuera de Git; hacer copia de seguridad).
-- Pruebas del protocolo: `.\tools\test-protocol.ps1` (Java) y `node tools\test-webble.js` (JS).
+- Pruebas: `.\tools\test-protocol.ps1` (protocolo en Java), `.\tools\test-xlsx.ps1` (escritor de .xlsx), `node tools\test-webble.js` (protocolo en JS), `node tools\test-status.js` (trama de estado) y `node tools\check-html.js` (sintaxis de los scripts de `index.html`, ids repetidos y `$("id")` inexistentes). Pasarlas antes de cada commit.
+- Pruebas de diseño en el navegador (sin BMS): `index.html?demo` (3 h de historial simulado), `&hora=HH:MM` (cielo de la autonomía a esa hora), `&tema=…&neon=0&hc=1&panel=tema`. Los parámetros de prueba no se guardan como preferencia.
 - Versión web: `app/index.html` usa Web Bluetooth (`app/webble.js`) si se abre en Chrome desde `localhost` o https. Fuera de Chrome muestra una demo.
 - CI/CD con GitHub Actions para publicar releases: previsto en el paso 6.
 
@@ -67,12 +68,13 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 1. **Descubrir el servicio y las características BLE del BMS** con nRF Connect (escanear, conectar, capturar la lista de servicios y características). ✅ Hecho
 2. Capturar el tráfico entre BMS tools y el BMS (Opciones de desarrollador → "Registro de búsqueda de HCI Bluetooth" / HCI snoop log) y descifrar las tramas. ✅ Hecho (queda el fleco de los bits de estado, ver `docs/protocolo_bms.md`)
 3. Prototipo mínimo: conectar y mostrar voltaje, corriente, SOC y celdas. ✅ Hecho (23-nov-2026): versión web y APK v0.3 funcionando con el BMS real.
-   - Ya hecho: tarjeta de autonomía (hasta el 15 %, media de 5 min, hora de llegada, amanecer 07:00 y W máximos para llegar), lista para elegir el BMS (recuerda el último y solo reconecta a ese), dashboard a "--" sin conexión y en gris mientras reconecta.
+   - Tarjeta de autonomía (hasta el 15 %, media de 5 min, hora de llegada, amanecer 07:00 y W máximos para llegar), lista para elegir el BMS (recuerda el último y solo reconecta a ese), dashboard a "--" sin conexión y en gris mientras reconecta.
    - Pendiente menor: la versión de firmware (trama `00 01`, solo llega al activar las notificaciones) no aparece en "Dispositivo"; el nº de serie sí. A Jhonny no le corre prisa.
    - Orden acordado: primero funciones (registro → consumo nocturno → gráficas → exportar CSV/XLSX para analítica) y después la parte visual.
-4. Registro periódico local (base de datos en el dispositivo) y gráficas: consumo por horas, descarga nocturna, carga solar y de red, horas restantes estimadas. ← SIGUIENTE (necesita grabar con la pantalla apagada: servicio en primer plano en la APK)
-5. Exportar a CSV y XLSX para analizar los datos y hacer gráficas fuera de la app (Excel, Google Sheets, etc.).
-6. Pulido para compartir: icono, nombre, instrucciones de instalación y manejo de errores.
+4. Registro periódico local y gráficas. ✅ Hecho (v0.4–v0.9): servicio en primer plano, SQLite, resumen de la noche, gráficas de 24 h, alertas y trama de estado. Detalle en "Estado de la app".
+5. Exportar a CSV y XLSX. ✅ Hecho (v0.10–v0.11).
+   - Parte visual (v0.12–v0.20) hecha también: escena del cielo, Personalizar, KPIs con estado, medidores de la noche, panel a todo el ancho, Acerca de.
+6. Pulido para compartir: icono, instrucciones de instalación y manejo de errores. ← SIGUIENTE. Hay ya una infografía de ayuda (`docs/infografia/`). Falta: icono definitivo, guía de instalación para los amigos (APK desde fuera de Play Store en Samsung), probar con otra unidad del BMS y CI/CD con GitHub Actions para publicar releases.
 - **Idea futura (sin internet):** calcular el amanecer y el atardecer de cada día con la fórmula astronómica (NOAA) a partir de la latitud, la longitud y la fecha. El usuario elegiría su provincia o municipio en una lista de coordenadas guardada en la app. Ahora son horas fijas en Ajustes (07:00 / 18:00), y en Cuba varían más de 1 h a lo largo del año.
 7. **Fase futura: leer el inversor** (cuando la app del BMS esté completa). El BMS solo ve la corriente neta de la batería (sol + red − consumo), así que no puede separar el aporte de los paneles ni el consumo real de la casa con sol. Solo el inversor conoce los W de FV, de red y de carga. Hay que averiguar su puerto de comunicación (independiente del BMS) y su protocolo, y capturar y descifrar el tráfico como con el BMS. Mientras tanto, la tarjeta de autonomía avisa de día de que la estimación incluye el sol y que es fiable de noche.
 
@@ -80,7 +82,46 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - El nombre "Must" es una marca de MUST Power. Para compartirla entre amigos no hay problema, pero si algún día se publica en Google Play conviene cambiarlo o dejar claro que es una app no oficial.
 - El BMS solo ve el consumo total de la casa. El consumo por aparato se obtiene apagando aparatos uno a uno y viendo cuánto baja la corriente (W ≈ ΔA × 26,5 V).
 
+## Estado de la app (v0.20, 23-nov-2026)
+Versión en `android/AndroidManifest.xml` (`versionName` 0.20). Cada versión es un commit `vX.Y: …` con el detalle en el cuerpo del mensaje (`git log`).
+
+**Java (`android/src/com/jhonny/mustmanager/`)**
+- `MainActivity`: WebView con `app/` y puente `Android` hacia la página. Los enlaces `mailto:` abren la app de correo; cualquier otra navegación fuera de `file:///android_asset/` se bloquea.
+- `BmsClient` + `BmsProtocol`: conexión BLE y las 5 tramas de la lista blanca. Reconexión con `connectGatt(autoConnect=true)` al BMS elegido, sin búsquedas (Android limita a 5 búsquedas cada 30 s y las bloquea con la pantalla apagada); mensaje claro si salta `SCANNING_TOO_FREQUENTLY`.
+- `MonitorService`: servicio en primer plano (`connectedDevice`) con notificación fija (SOC y W) y botón Desconectar, y wake lock parcial para seguir leyendo con la tablet bloqueada. Si Android lo cierra, reconecta al último BMS. Tras **actualizar** la app no reanuda solo (guarda la versión con la que empezó).
+- `ReadingStore`: SQLite (BD v2). Tabla de lecturas, una fila cada 10 s (SOC, V, A, W, Ah, 8 celdas, temperaturas y `dt` para integrar energía sin contar los huecos). No guarda nada hasta tener también las celdas. Tabla `status_log`: cada cambio de la trama de estado con su SOC y corriente.
+- `AlertManager` (dentro del servicio, funciona con la pantalla apagada; canal "Alertas de la batería", prioridad alta):
+  - SOC bajo: aviso al 30 % y urgente al 20 %. Salta una vez y se rearma a +5 puntos.
+  - Llegó la corriente: media de 1 min > 150 W de noche o > 1050 W de día, sostenida 1 min. Se fue: vuelve a descargar (< −100 W) durante 1 min.
+  - No llegas al amanecer: media de 5 min, solo de noche. Repite solo si empeora más de 30 min.
+  - Sin conexión más de 5 min, con aviso de recuperación.
+- `Settings`: umbrales, alertas sí/no, amanecer, atardecer y % de corte, validados en Java. La pantalla los usa también para la autonomía.
+- `Exporter` + `XlsxWriter`: Excel con tres hojas (Lecturas cada 10 s con celdas y energía por intervalo; Por hora con kWh cargados/descargados, consumo medio, pico y carga media; Estado del BMS) o CSV (Lecturas). Periodo: 24 h, 7 días, 30 días o todo. El .xlsx se escribe sin librerías (zip + XML) y se validó con SheetJS. Se guarda en Descargas/MustManager con MediaStore, sin permisos (en Android 7–9, en la carpeta de la app), y se puede compartir.
+- Permisos: el de notificaciones (`POST_NOTIFICATIONS`) se pide una vez, aunque ya esté concedido el de Bluetooth.
+
+**Interfaz (`app/index.html`, `app/status.js`, `app/webble.js`; ECharts 5.6.1 local)**
+- Cabecera: Conectar, campana (alertas y ajustes: rellena = alertas activas y notificaciones permitidas; solo silueta = desactivadas o bloqueadas), exportar, paleta y Acerca de. Un solo panel abierto a la vez. En el móvil la cabecera pasa a dos líneas.
+- Autonomía: escena plana animada según la hora (alba, mañana, día, atardecer, crepúsculo, noche) con colinas en tres capas, arbolitos, nubes con vaivén y estrellas. El sol y la luna recorren la mitad derecha (la izquierda la ocupan el texto y su velo). Número con el color de la situación (verde llega, ámbar justo, rojo no llega, azul cargando), siempre con texto. Respeta las "animaciones reducidas" del sistema.
+- KPIs con color de estado, solo en el texto, sin relleno ni neón:
+  - Potencia y corriente: verde por debajo del consumo máximo para llegar al amanecer, ámbar a menos del 10 % de ese límite, rojo por encima, azul cargando.
+  - Voltaje: normal entre 24,8 y 28,4 V; muy bajo < 24,0 V; muy alto > 28,8 V.
+  - Restante: umbrales de las alertas (30 % / 20 %).
+- Tarjeta del SOC cuadrada (252 px) con anillo.
+- "Esta noche / Anoche": medidores semicirculares de energía gastada frente a la disponible al anochecer, consumo medio frente al límite para llegar, pico frente a los 3000 W del inversor y energía que entró hoy frente a los 7,2 kWh. Más la cobertura y el SOC de inicio → fin.
+- Gráfica "Batería y consumo · últimas N horas": dos paneles con cursor sincronizado. Arriba el SOC en área verde. Abajo la carga (azul, ≥ 0) y el consumo (ámbar, ≤ 0) como dos series, con línea del cero. Huecos visibles. Con menos de 3 h de datos muestra 3 h.
+- "Estado del BMS" (`status.js`, trama `0A 03` con estructura PACE): carga y descarga permitidas o cortadas, protecciones, balanceo, avisos y fallos. Solo están confirmados Fully (byte 2 b7) y CFET/DFET/pack (byte 3 b1–b3); el resto sale como "por confirmar".
+- Personalizar: 10 paletas (Original, Prado, Cielo, Coral, Noche, Lavanda, Oro, Cyberpunk, Esmeralda, Grafito), neón y alto contraste, recordados en el dispositivo. Acento `--acc` separado de los colores de estado, que no cambian con la paleta.
+- Panel a todo el ancho (tablet en horizontal o vertical y móvil); las 8 celdas caben en una fila en pantallas anchas.
+- Acerca de: versión, autor y correo de contacto. El asunto del correo lleva la versión, para saber qué versión usa quien escribe.
+- `docs/infografia/`: guía visual del panel (`infografia.html` → `guia_del_panel.png`) para compartir con los amigos.
+
+**Lecciones**
+- `[hidden]` siempre debe ocultar: los botones con `display` propio lo ignoraban. Hay una regla global.
+- En ECharts, `visualMap` fallaba con dos paneles (`reading 'coord'`) y la potencia no se dibujaba. Se resolvió con dos series separadas.
+- `build.ps1` empaqueta los assets con rutas "/" (aapt2 en Windows ponía ""), y con `-Install` detiene la app antes de instalar para liberar el BMS.
+
 ## Estado
 - Nombre del proyecto y de la APK decidido: **Must Manager**.
 - Paso 1 hecho (23-nov-2026): servicios BLE descubiertos (ver sección "Servicios BLE del BMS").
 - Paso 2 hecho (23-nov-2026): protocolo descifrado desde el HCI log; todos los valores coinciden con la lectura de referencia.
+- Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Siguiente: paso 6 (pulido para compartir).
