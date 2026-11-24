@@ -182,9 +182,9 @@
   .about .aboutOk { margin-top: 14px; min-width: 140px; }
   .about .linkBtn { background: none; color: var(--acc); padding: 4px 8px; font-size: 13px; }
   /* Medidor de aparatos */
-  .apps h2 { align-items: center; }
-  .apps h2 button { margin-left: auto; padding: 7px 14px; font-size: 13px; }
-  .apps .empty { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .apps .empty { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 10px; }
+  .apps .appList { margin-top: 12px; }
+  .apps .appsActions { margin-top: 14px; }
   .appList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
   .appItem { display: flex; align-items: center; gap: 10px; background: var(--tile); border-radius: 10px; padding: 10px 12px; }
   .appItem .nm { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -277,6 +277,10 @@
 <body>
 <header>
   <h1>Must Manager <small id="ver"></small></h1>
+  <button class="icon" id="appsBtn" title="Mis aparatos" aria-label="Mis aparatos: medir lo que gasta cada aparato" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 2v5"/><path d="M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg>
+  </button>
   <button class="icon" id="themeBtn" title="Personalizar" aria-label="Personalizar colores" aria-expanded="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/>
@@ -345,6 +349,12 @@
   <div id="newsBody"></div>
   <button id="nOk" class="aboutOk">Aceptar</button>
 </div>
+</div>
+
+<div class="card settings apps" id="appsCard" hidden>
+  <h2>Mis aparatos <button class="icon close" id="appsClose" aria-label="Cerrar">✕</button></h2>
+  <div id="appList"></div>
+  <div class="appsActions"><button id="mStart">＋ Medir un aparato</button></div>
 </div>
 
 <div class="card settings" id="themeCard" hidden>
@@ -467,11 +477,6 @@
     <div class="tile kpi" id="kVoltage"><label>Voltaje</label><b id="voltage">--<small>V</small></b><div class="sub" id="voltageSub">&nbsp;</div></div>
     <div class="tile kpi" id="kRemaining"><label>Restante</label><b id="remaining">--<small>Ah</small></b><div class="sub" id="energy">&nbsp;</div></div>
   </div>
-</div>
-
-<div class="card apps" id="appsCard" style="margin-bottom:14px">
-  <h2>Mis aparatos <button id="mStart">＋ Medir un aparato</button></h2>
-  <div id="appList"></div>
 </div>
 
 <div class="card" id="nightCard" style="margin-bottom:14px">
@@ -1472,6 +1477,9 @@
   }
   $("mName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveMeter(); });
   $("mStart").addEventListener("click", openMeter);
+  $("appsBtn").addEventListener("click", function () { togglePanel("appsCard", "appsBtn"); });
+  $("appsClose").addEventListener("click", function () { togglePanel("appsCard", "appsBtn", false); });
+  if (/[?&]panel=aparatos/.test(location.search)) togglePanel("appsCard", "appsBtn", true);
   $("mClose").addEventListener("click", closeMeter);
   $("meterCard").addEventListener("click", function (e) { if (e.target === this) closeMeter(); });
   // Si se pierde la conexión a mitad de medida, se avisa en vez de seguir esperando.
@@ -1538,7 +1546,7 @@
   // Paneles de la cabecera (exportar y ajustes): solo uno abierto a la vez.
   function togglePanel(cardId, btnId, force) {
     var open = typeof force === "boolean" ? force : $(cardId).hidden;
-    [["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"], ["aboutCard", "aboutBtn"]].forEach(function (p) {
+    [["appsCard", "appsBtn"], ["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"], ["aboutCard", "aboutBtn"]].forEach(function (p) {
       $(p[0]).hidden = true;
       $(p[1]).setAttribute("aria-expanded", "false");
     });
