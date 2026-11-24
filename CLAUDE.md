@@ -8,6 +8,9 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - Responder siempre en español, con un tono cercano.
 - Ir paso a paso: una acción o recomendación a la vez, comprobar el resultado y luego seguir. Nada de listas largas de alternativas.
 - Explicar el porqué de cada decisión técnica. Es artista 3D profesional (Unreal, 3ds Max, ZBrush, Substance), domina Git y le gusta la automatización y entender cómo funcionan las cosas.
+- **No es programador:** explicar los conceptos de forma sencilla, con comparaciones de su mundo (3D, Unreal, ZBrush) cuando ayuden.
+- **Mantener este `CLAUDE.md` siempre al día (regla de Jhonny, importante):** guardar aquí cada avance importante en cuanto se haga, y **al final de cada sesión** revisar si queda algo por actualizar (estado, decisiones, pendientes, lecciones) y ponerlo antes de despedirse.
+- Subir los cambios directamente a `main` (commit + push) cuando estén probados; Jhonny hace `git pull` en el PC y en la tablet.
 
 ## Reglas del proyecto
 - **Solo lectura.** La app NUNCA escribe parámetros en el BMS: es imposible desconfigurar las protecciones de la batería.
@@ -52,9 +55,11 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - SDK portable en `D:\Android` (`jdk17`, `sdk` con build-tools 35.0.0, platform android-34 y platform-tools/adb; zips en `descargas\`).
 - Compilar: `.\android\build.ps1` (→ `dist\`), y con `-Install` la instala por USB con adb. Firma en `secretos\` (fuera de Git; hacer copia de seguridad).
 - Pruebas: `.\tools\test-protocol.ps1` (protocolo en Java), `.\tools\test-xlsx.ps1` (escritor de .xlsx), `node tools\test-webble.js` (protocolo en JS), `node tools\test-status.js` (trama de estado) y `node tools\check-html.js` (sintaxis de los scripts de `index.html`, ids repetidos y `$("id")` inexistentes). Pasarlas antes de cada commit.
+- **Probar la web en la tablet sin compilar:** en Termux, `cd ~/proyectos/must_manager/app && busybox httpd -f -p 8000` (busybox instalado con `pkg install busybox`; no hay Python) y abrir `http://localhost:8000` en Chrome. Conecta al BMS real por Web Bluetooth (antes, Desconectar en la notificación de la APK). Sin la APK no hay campana, exportar, gráfica ni "Esta noche" (dependen del puente Java), es normal. No afecta a la APK instalada.
 - Pruebas de diseño en el navegador (sin BMS): `index.html?demo` (3 h de historial simulado), `&hora=HH:MM` (cielo de la autonomía a esa hora), `&tema=…&neon=0&hc=1&panel=tema`. Los parámetros de prueba no se guardan como preferencia.
 - Versión web: `app/index.html` usa Web Bluetooth (`app/webble.js`) si se abre en Chrome desde `localhost` o https. Fuera de Chrome muestra una demo.
-- CI/CD con GitHub Actions para publicar releases: previsto en el paso 6.
+- **Compilar en la nube (idea acordada, pendiente):** GitHub Actions compilaría la APK en cada push y Jhonny la descargaría desde la tablet (gratis en la práctica: ~2000 min/mes en repos privados, 1–2 min por compilación). Requisito: subir una vez desde el PC la llave de `secretos\` como *secret* cifrado del repo. Desde el entorno de Claude Code no se puede compilar (no hay acceso a dl.google.com ni a los paquetes de Termux).
+- **`secretos\`** contiene `mustmanager.keystore` (la llave de firma) y `firma.txt` (su contraseña). Sin ellos no se puede actualizar la app instalada sin desinstalarla (y perder el historial). Recordar a Jhonny hacer **copia de seguridad** fuera del PC (pendiente a 24-nov-2026). No está en la tablet.
 
 ## Sistema de referencia (casa de Jhonny)
 - Equipo: Must HBP3000 LV (MD: HBP30-3024 LV). Inversor de 3000 W, onda senoidal pura, salida 120 V / 60 Hz.
@@ -77,6 +82,9 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 6. Compartir con los amigos. ✅ Hecho: la APK v0.20 ya la usan amigos de Jhonny con el mismo sistema. Lleva la infografía de ayuda (`docs/infografia/`) y el botón Acerca de con el correo de contacto. Opcional, sin prisa: publicar versiones con GitHub Actions.
 - **Idea futura (sin internet):** calcular el amanecer y el atardecer de cada día con la fórmula astronómica (NOAA) a partir de la latitud, la longitud y la fecha. El usuario elegiría su provincia o municipio en una lista de coordenadas guardada en la app. Ahora son horas fijas en Ajustes (07:00 / 18:00), y en Cuba varían más de 1 h a lo largo del año.
 7. **Fase futura: leer el inversor** (cuando la app del BMS esté completa). El BMS solo ve la corriente neta de la batería (sol + red − consumo), así que no puede separar el aporte de los paneles ni el consumo real de la casa con sol. Solo el inversor conoce los W de FV, de red y de carga. Hay que averiguar su puerto de comunicación (independiente del BMS) y su protocolo, y capturar y descifrar el tráfico como con el BMS. Mientras tanto, la tarjeta de autonomía avisa de día de que la estimación incluye el sol y que es fiable de noche.
+   - **Manual del inversor revisado (24-nov-2026):** es el de la serie **HBP3000 de 1 a 6 kW** (sirve para el de Jhonny y el del amigo). No está en el repo (Jhonny lo adjuntó en la sesión). Puertos: REMOTO, BAT-CAN (ocupado por la batería), AGS (generador), **USB** y **puerto Wi-Fi** (toma para un módulo WiFi opcional, que se compra aparte y suele ir por la nube). **Sin Bluetooth.** El USB es para el programa de Windows **SolarPowerMonitor** de Must (detecta el puerto COM solo). La pantalla muestra voltaje y potencia FV, voltaje y corriente del cargador FV, red (V/Hz), cargador de red, consumo en W y VA con %, temperaturas y códigos de fallo: esos datos existen por comunicación.
+   - Jhonny prefiere **sin cables** y en Cuba es difícil conseguir accesorios. Camino más realista: el USB con un cable normal (más un adaptador OTG USB-C en la tablet), espiando primero a SolarPowerMonitor en el PC, como se hizo con el HCI log. Serie/paralelo se deduce del voltaje FV; no hay datos por panel (el inversor ve la cadena entera).
+   - **Siguiente paso:** fotos de la parte de atrás del inversor: forma del conector USB (para saber qué cable hace falta y si ya lo tiene) y si el puerto Wi-Fi tiene algo enchufado.
 
 ## Notas
 - El nombre "Must" es una marca de MUST Power. Para compartirla entre amigos no hay problema, pero si algún día se publica en Google Play conviene cambiarlo o dejar claro que es una app no oficial.
@@ -100,7 +108,7 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
 - `ReadingStore`: SQLite (BD v2). Tabla de lecturas, una fila cada 10 s (SOC, V, A, W, Ah, 8 celdas, temperaturas y `dt` para integrar energía sin contar los huecos). No guarda nada hasta tener también las celdas. Tabla `status_log`: cada cambio de la trama de estado con su SOC y corriente.
 - `AlertManager` (dentro del servicio, funciona con la pantalla apagada; canal "Alertas de la batería", prioridad alta):
   - SOC bajo: aviso al 30 % y urgente al 20 %. Salta una vez y se rearma a +5 puntos.
-  - Llegó la corriente: media de 1 min > 150 W de noche o > 1050 W de día, sostenida 1 min. Se fue: vuelve a descargar (< −100 W) durante 1 min.
+  - Llegó la corriente: media de 1 min > 150 W de noche o > paneles × 1,03 de día (ajuste Paneles, 1020 W por defecto), sostenida 1 min. Se fue: vuelve a descargar (< −100 W) durante 1 min.
   - No llegas al amanecer: media de 5 min, solo de noche. Repite solo si empeora más de 30 min.
   - Sin conexión más de 5 min, con aviso de recuperación.
 - `Settings`: umbrales, alertas sí/no, amanecer, atardecer y % de corte, validados en Java. La pantalla los usa también para la autonomía.
@@ -112,15 +120,15 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
 - Autonomía: escena plana animada según la hora (alba, mañana, día, atardecer, crepúsculo, noche) con colinas en tres capas, arbolitos, nubes con vaivén y estrellas. El sol y la luna recorren la mitad derecha (la izquierda la ocupan el texto y su velo). Número con el color de la situación (verde llega, ámbar justo, rojo no llega, azul cargando), siempre con texto. Respeta las "animaciones reducidas" del sistema.
 - KPIs con color de estado, solo en el texto, sin relleno ni neón:
   - Potencia y corriente: verde por debajo del consumo máximo para llegar al amanecer, ámbar a menos del 10 % de ese límite, rojo por encima, azul cargando.
-  - Voltaje: normal entre 24,8 y 28,4 V; muy bajo < 24,0 V; muy alto > 28,8 V.
+  - Voltaje, por celda (vale para 24 V y 48 V): normal entre 3,1 y 3,55 V; muy bajo < 3,0 V; muy alto > 3,6 V.
   - Restante: umbrales de las alertas (30 % / 20 %).
 - Tarjeta del SOC cuadrada (252 px) con anillo.
-- "Esta noche / Anoche": medidores semicirculares de energía gastada frente a la disponible al anochecer, consumo medio frente al límite para llegar, pico frente a los 3000 W del inversor y energía que entró hoy frente a los 7,2 kWh. Más la cobertura y el SOC de inicio → fin.
+- "Esta noche / Anoche": medidores semicirculares de energía gastada frente a la disponible al anochecer, consumo medio frente al límite para llegar, pico frente a la potencia del inversor (ajuste o automático) y energía que entró hoy frente a la capacidad de la batería detectada. Más la cobertura y el SOC de inicio → fin.
 - Gráfica "Batería y consumo · últimas N horas": dos paneles con cursor sincronizado. Arriba el SOC en área verde. Abajo la carga (azul, ≥ 0) y el consumo (ámbar, ≤ 0) como dos series, con línea del cero. Huecos visibles. Con menos de 3 h de datos muestra 3 h.
 - "Estado del BMS" (`status.js`, trama `0A 03` con estructura PACE): carga y descarga permitidas o cortadas, protecciones, balanceo, avisos y fallos. Solo están confirmados Fully (byte 2 b7) y CFET/DFET/pack (byte 3 b1–b3); el resto sale como "por confirmar".
 - Personalizar: 10 paletas (Original, Prado, Cielo, Coral, Noche, Lavanda, Oro, Cyberpunk, Esmeralda, Grafito), neón y alto contraste, recordados en el dispositivo. Acento `--acc` separado de los colores de estado, que no cambian con la paleta.
 - Panel a todo el ancho (tablet en horizontal o vertical y móvil); las 8 celdas caben en una fila en pantallas anchas.
-- Acerca de: versión, autor y correo de contacto. El asunto del correo lleva la versión, para saber qué versión usa quien escribe.
+- Acerca de: **ventana emergente centrada** (máx. 400 px, fondo oscuro difuminado, texto centrado) con versión, autor **Jhonny Valdes** y correo de contacto. Se cierra con **Aceptar**, la ✕, tocando fuera o con Escape. El asunto del correo lleva la versión, para saber qué versión usa quien escribe. Pendiente opcional: que el botón Atrás de Android la cierre (hoy la APK no pasa ese botón a la página; requiere tocar Java).
 - `docs/infografia/`: guía visual del panel (`infografia.html` → `guia_del_panel.png`) para compartir con los amigos.
 
 **Lecciones**
@@ -132,5 +140,5 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
 - Nombre del proyecto y de la APK decidido: **Must Manager**.
 - Paso 1 hecho (23-nov-2026): servicios BLE descubiertos (ver sección "Servicios BLE del BMS").
 - Paso 2 hecho (23-nov-2026): protocolo descifrado desde el HCI log; todos los valores coinciden con la lectura de referencia.
-- v0.21 (24-nov-2026): compatible también con baterías de 48 V (16S). Pendiente: que el amigo del HBP3300 TLV la pruebe y ponga los W de sus paneles en Ajustes.
+- v0.21 (24-nov-2026): compatible también con baterías de 48 V (16S), aviso de varias baterías en paralelo y Acerca de como ventana emergente. Probado en Chrome de la tablet con el BMS real (24 V): todo correcto y sin aviso de paralelo. **Sin compilar todavía** (Jhonny no tenía el PC): mañana `git pull` + `.\android\build.ps1 -Install` en el PC; si compila, probar en su tablet (incluida una exportación a Excel, que no se pudo probar) y pasar la APK de `dist\` al amigo del HBP3300 TLV, que debe poner los W de sus paneles en la campana → Paneles. Las partes Java nuevas (ajustes, alertas, exportación, nº de baterías) solo se revisaron a mano: el primer error de compilación, si lo hay, saldrá en `build.ps1`.
 - Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Paso 6 hecho: la v0.20 ya está compartida con amigos que tienen el mismo sistema.
