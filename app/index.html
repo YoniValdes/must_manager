@@ -1025,7 +1025,7 @@
     if (theme.hc) {
       // Alto contraste por tono, no por bordes: fondo casi negro, tarjetas más claras y casillas
       // (dentro de las tarjetas) un poco más claras todavía.
-      c = { bg: mix(p.bg, "#000000", .55), card: mix(p.card, p.text, .09), tile: mix(p.card, p.text, .16), line: mix(p.line, p.text, .12) };
+      c = { bg: mix(p.bg, "#000000", .8), card: mix(p.card, p.text, .15), tile: mix(p.card, p.text, .25), line: mix(p.line, p.text, .2) };
     }
     ["bg", "card", "tile", "line"].forEach(function (k) { st.setProperty("--" + k, c[k]); });
     ["text", "muted", "acc"].forEach(function (k) { st.setProperty("--" + k, p[k]); });
