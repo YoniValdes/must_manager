@@ -180,6 +180,18 @@
   .about dt { margin-top: 4px; font-size: 12px; }
   .about dd { text-align: center; }
   .about .aboutOk { margin-top: 14px; min-width: 140px; }
+  .about .linkBtn { background: none; color: var(--acc); padding: 4px 8px; font-size: 13px; }
+  /* Novedades tras actualizar */
+  .news .newsVer { margin-top: 8px; font-size: 22px; font-weight: 800; }
+  .news .newsSub { color: var(--muted); font-size: 13px; }
+  .news ul { list-style: none; padding: 0; margin: 14px 0 4px; display: grid; gap: 10px; text-align: left; }
+  .news li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  .news .tag { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; margin-top: 1px; white-space: nowrap;
+    min-width: 76px; text-align: center; box-sizing: border-box; }
+  .news .t-new { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+  .news .t-fix { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .news .t-imp { background: color-mix(in srgb, var(--charge) 22%, transparent); color: #7cc4f0; }
+  .news h3 { font-size: 13px; color: var(--muted); margin: 16px 0 0; text-align: left; border-top: 1px solid var(--line); padding-top: 12px; }
   .about a { color: var(--acc); font-weight: 600; }
   .about .sub { color: var(--muted); font-size: 12px; }
   /* Tarjeta del SOC cuadrada (su lado ≈ el alto de los cuatro KPIs) */
@@ -282,7 +294,19 @@
   </dl>
   <p class="sub">¿Ideas, fallos o algo que no se entiende? Escríbeme, me ayuda a mejorarla.<br>
     App no oficial, sin relación con MUST Power. Úsala bajo tu responsabilidad.</p>
+  <button class="linkBtn" id="aNews">✨ Ver las novedades de esta versión</button><br>
   <button id="aOk" class="aboutOk">Aceptar</button>
+</div>
+</div>
+
+<div class="modal" id="newsCard" hidden>
+<div class="card settings about news" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+  <button class="icon close" id="nClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">✨</div>
+  <div class="newsVer" id="newsTitle">Novedades</div>
+  <div class="newsSub">Must Manager se ha actualizado</div>
+  <div id="newsBody"></div>
+  <button id="nOk" class="aboutOk">Aceptar</button>
 </div>
 </div>
 
@@ -468,6 +492,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js"></script>
 <script src="status.js"></script>
+<script src="changelog.js"></script>
 <script>
 (function () {
   "use strict";
@@ -1252,7 +1277,62 @@
   $("aOk").addEventListener("click", closeAbout);
   // Tocar fuera de la ventana (en el fondo oscuro) también la cierra; y la tecla Escape.
   $("aboutCard").addEventListener("click", function (e) { if (e.target === this) closeAbout(); });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("aboutCard").hidden) closeAbout(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if (!$("newsCard").hidden) closeNews(); else if (!$("aboutCard").hidden) closeAbout();
+  });
+
+  // ---------------------------------------------------------------- novedades tras actualizar
+  // Al abrir una versión distinta de la última vista, se enseñan las novedades (changelog.js) una vez.
+  // Si el usuario se saltó versiones, salen todas las que no ha visto. Se apunta al pulsar Aceptar.
+  var NEWS_TAGS = { "new": "Nuevo", fix: "Corregido", imp: "Mejorado" };
+  var currentVersion = hasBridge ? String(window.Android.version()) : null;
+  function verCmp(a, b) {
+    var x = String(a).split("."), y = String(b).split(".");
+    for (var i = 0; i < Math.max(x.length, y.length); i++) {
+      var d = (+x[i] || 0) - (+y[i] || 0);
+      if (d) return d;
+    }
+    return 0;
+  }
+  function openNews(sinceVersion) {
+    var log = window.CHANGELOG || [];
+    if (!log.length) return false;
+    var list = log.filter(function (e) { return !sinceVersion || verCmp(e.version, sinceVersion) > 0; });
+    if (!list.length) list = [log[0]];
+    var top = currentVersion && log.some(function (e) { return e.version === currentVersion; }) ? currentVersion : list[0].version;
+    $("newsTitle").textContent = "Novedades de la v" + top;
+    $("newsBody").innerHTML = list.map(function (e, i) {
+      return (i ? "<h3>Versión " + esc(e.version) + "</h3>" : "") + "<ul>" + e.items.map(function (it) {
+        return "<li><span class='tag t-" + esc(it[0]) + "'>" + (NEWS_TAGS[it[0]] || "") + "</span><span>" + esc(it[1]) + "</span></li>";
+      }).join("") + "</ul>";
+    }).join("");
+    togglePanel("aboutCard", "aboutBtn", false);
+    $("newsCard").hidden = false;
+    document.body.classList.add("modalOpen");
+    $("nOk").focus();
+    return true;
+  }
+  function closeNews() {
+    $("newsCard").hidden = true;
+    document.body.classList.remove("modalOpen");
+    if (currentVersion) { try { localStorage.setItem("mm-seen-version", currentVersion); } catch (e) { /* sin almacenamiento */ } }
+  }
+  $("nOk").addEventListener("click", closeNews);
+  $("nClose").addEventListener("click", closeNews);
+  $("newsCard").addEventListener("click", function (e) { if (e.target === this) closeNews(); });
+  $("aNews").addEventListener("click", function () { openNews(null); });
+  (function () {
+    var seen = null;
+    try { seen = localStorage.getItem("mm-seen-version"); } catch (e) { /* sin almacenamiento */ }
+    if (/[?&]novedades/.test(location.search)) { openNews(null); return; } // prueba en el navegador
+    // Solo en la APK (la web y la demo no tienen versión propia). Sin versión vista (primera vez con
+    // esta función, p. ej. al pasar de la 0.20), se enseña la versión actual.
+    if (currentVersion && seen !== currentVersion) {
+      var shown = openNews(seen && verCmp(seen, currentVersion) < 0 ? seen : null);
+      if (!shown) { try { localStorage.setItem("mm-seen-version", currentVersion); } catch (e) { } }
+    }
+  })();
   if (/[?&]panel=about/.test(location.search)) togglePanel("aboutCard", "aboutBtn", true);
 
   // Paneles de la cabecera (exportar y ajustes): solo uno abierto a la vez.
