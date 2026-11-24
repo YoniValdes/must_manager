@@ -9,6 +9,7 @@ window.CHANGELOG = [
   {
     version: "0.21",
     items: [
+      ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y guárdalo en una lista."],
       ["new", "Compatible con baterías de 48 V (16 celdas), como el Must HBP3300 TLV. Antes decía «valores fuera de rango» y no mostraba datos."],
       ["new", "La app reconoce sola tu batería: número de celdas, capacidad y kWh."],
       ["new", "Aviso si tienes varias baterías en paralelo (por ahora solo se muestra la batería 1)."],
@@ -17,7 +18,7 @@ window.CHANGELOG = [
       ["fix", "Los medidores de «Esta noche» ya no se cortan ni se deforman en vertical o al girar la pantalla."],
       ["imp", "El color del voltaje se calcula por celda, así vale para cualquier batería."],
       ["imp", "Al exportar a Excel salen tantas columnas de celdas como tenga tu batería."],
-      ["imp", "«Acerca de» ahora es una ventana centrada con botón Aceptar."]
+      ["imp", "Nuevo diseño de las ventanas (Acerca de, Personalizar, novedades…): centradas, con borde de neón y animación al abrir y cerrar."]
     ]
   }
 ];
