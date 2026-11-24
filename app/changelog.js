@@ -9,6 +9,7 @@ window.CHANGELOG = [
   {
     version: "0.21",
     items: [
+      ["new", "Widget para la pantalla de inicio: SOC, consumo y autonomía sobre el cielo de la app, sin abrirla. Mantén pulsado un hueco de la pantalla de inicio → Widgets → Must Manager."],
       ["new", "Alarma de batería baja: el aviso urgente (20 %) suena como un despertador suave que sube poco a poco, aunque esté en No molestar. Se activa en la campana."],
       ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y guárdalo en una lista."],
       ["new", "Compatible con baterías de 48 V (16 celdas), como el Must HBP3300 TLV. Antes decía «valores fuera de rango» y no mostraba datos."],
