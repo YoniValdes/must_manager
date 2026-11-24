@@ -9,6 +9,7 @@ window.CHANGELOG = [
   {
     version: "0.21",
     items: [
+      ["new", "Alarma de batería baja: el aviso urgente (20 %) suena como un despertador suave que sube poco a poco, aunque esté en No molestar. Se activa en la campana."],
       ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y guárdalo en una lista."],
       ["new", "Compatible con baterías de 48 V (16 celdas), como el Must HBP3300 TLV. Antes decía «valores fuera de rango» y no mostraba datos."],
       ["new", "La app reconoce sola tu batería: número de celdas, capacidad y kWh."],
@@ -16,6 +17,9 @@ window.CHANGELOG = [
       ["new", "Ajustes nuevos en la campana: potencia del inversor y de tus paneles (para que el aviso de «llegó la corriente» no salte por el sol)."],
       ["new", "Esta ventana de novedades después de cada actualización."],
       ["fix", "Los medidores de «Esta noche» ya no se cortan ni se deforman en vertical o al girar la pantalla."],
+      ["imp", "La autonomía usa el consumo medio de los últimos 30 minutos: más realista y estable (antes 5 min, y se disparaba con la nevera parada)."],
+      ["imp", "Los KPIs muestran de fondo una gráfica suave de los últimos 15 minutos."],
+      ["imp", "Alto contraste sin bordes: fondo más oscuro y tarjetas más claras."],
       ["imp", "El color del voltaje se calcula por celda, así vale para cualquier batería."],
       ["imp", "Al exportar a Excel salen tantas columnas de celdas como tenga tu batería."],
       ["imp", "Nuevo diseño de las ventanas (Acerca de, Personalizar, novedades…): centradas, con borde de neón y animación al abrir y cerrar."]

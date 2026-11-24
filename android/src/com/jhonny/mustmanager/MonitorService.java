@@ -25,6 +25,8 @@ import android.util.SparseArray;
 public class MonitorService extends Service implements BmsClient.Listener {
 
     public static final String ACTION_STOP = "com.jhonny.mustmanager.STOP";
+    /** Botón "Detener alarma" de la notificación de batería baja (no desconecta). */
+    public static final String ACTION_STOP_ALARM = "com.jhonny.mustmanager.STOP_ALARM";
     private static final String CHANNEL = "monitor";
     private static final int NOTIF_ID = 1;
     private static final long SAVE_EVERY_MS = 10000;
@@ -81,6 +83,15 @@ public class MonitorService extends Service implements BmsClient.Listener {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             stopMonitoring();
             return START_NOT_STICKY;
+        }
+        if (intent != null && ACTION_STOP_ALARM.equals(intent.getAction())) {
+            // Solo para la alarma: el servicio sigue como estaba (monitorizando o no).
+            alerts.stopAlarm();
+            if (!foreground) {
+                stopSelf(); // el servicio se creó solo para parar la alarma: no hay nada más que hacer
+                return START_NOT_STICKY;
+            }
+            return START_STICKY;
         }
         goForeground("Iniciando…");
         // intent == null: Android reinició el servicio tras cerrarlo. Si estábamos monitorizando, reconectamos.
@@ -139,6 +150,10 @@ public class MonitorService extends Service implements BmsClient.Listener {
 
     public void testAlert() {
         alerts.test();
+    }
+
+    public void testAlarm() {
+        alerts.testAlarm();
     }
 
     public void stopMonitoring() {

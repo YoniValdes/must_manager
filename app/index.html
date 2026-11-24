@@ -441,10 +441,13 @@
       <span class="sub"><br>Un aviso y otro más urgente; cada uno suena una vez.</span></span></label>
     <div class="inline">Aviso al <input type="number" id="sSocWarn" min="5" max="95"> %
       Urgente al <input type="number" id="sSocCrit" min="1" max="90"> %</div>
+    <label class="row"><input type="checkbox" id="sAlarm"><span>⏰ Que el aviso urgente suene como una alarma
+      <span class="sub"><br>Con el sonido de alarma de tu reloj: empieza bajito y sube poco a poco, para despertarte sin
+      sobresalto antes del pitido del equipo. Suena aunque esté en No molestar y se para con «Detener alarma».</span></span></label>
     <label class="row"><input type="checkbox" id="sGrid"><span>⚡ Avisar cuando llega o se va la corriente
       <span class="sub"><br>De noche, cualquier carga es la red. De día solo se detecta si carga más de lo que dan los paneles.</span></span></label>
     <label class="row"><input type="checkbox" id="sSunrise"><span>🌙 Avisar si no llego al amanecer
-      <span class="sub"><br>De noche, con la media de los últimos 5 min. Vuelve a avisar solo si empeora.</span></span></label>
+      <span class="sub"><br>De noche, con la media de los últimos 30 min. Vuelve a avisar solo si empeora.</span></span></label>
     <label class="row"><input type="checkbox" id="sConn"><span>📡 Avisar si se pierde la conexión más de 5 min
       <span class="sub"><br>Para saber que no se está grabando.</span></span></label>
     <div class="times">Amanecer <input type="time" id="sRise"> Atardecer <input type="time" id="sSet">
@@ -452,7 +455,7 @@
     <div class="times">Inversor <input type="number" id="sInv" min="0" max="20000" step="100" placeholder="auto"> W
       Paneles <input type="number" id="sPanels" min="100" max="30000" step="10"> W
       <span class="sub">Inversor vacío = automático según la batería (24 V → 3000 W, 48 V → 6000 W). Paneles: para saber, de día, si la carga viene de la red.</span></div>
-    <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button>
+    <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button><button class="secondary" id="sTestAlarm">Probar alarma</button>
       <span class="saved" id="sSaved"></span></div>
   </div>
 </div>
@@ -597,7 +600,9 @@
   var CUTOFF_SOC = 15;          // ajuste 38 del inversor: corta la descarga al 15 % de SOC
   var SUNRISE = "07:00";        // amanecer aproximado (se hará configurable)
   var SUNSET = "18:00";         // atardecer aproximado: de día el BMS ve consumo − sol (neto)
-  var WINDOW_MS = 5 * 60 * 1000; // media de la corriente en los últimos 5 minutos
+  // Media de la corriente en los últimos 30 min: abarca al menos un ciclo completo de la nevera (15–20 min),
+  // así la autonomía no se dispara cuando el compresor está parado ni se hunde cuando arranca.
+  var WINDOW_MS = 30 * 60 * 1000;
   var IDLE_A = 0.3;             // por debajo de esto se considera reposo
   var samples = [];             // [{t, a}]
   var serials = {};
@@ -1386,6 +1391,7 @@
     CUTOFF_SOC = s.cutoffSoc; SUNRISE = s.sunrise; SUNSET = s.sunset;
     settingsCache = s;
     $("sSoc").checked = s.socAlerts; $("sSocWarn").value = s.socWarn; $("sSocCrit").value = s.socCritical;
+    $("sAlarm").checked = s.socAlarm !== false;
     $("sGrid").checked = s.gridAlerts; $("sSunrise").checked = s.sunriseAlerts; $("sConn").checked = s.connAlerts;
     $("sRise").value = s.sunrise; $("sSet").value = s.sunset; $("sCut").value = s.cutoffSoc;
     $("sInv").value = s.inverterW > 0 ? s.inverterW : ""; $("sPanels").value = s.panelsW || 1020;
@@ -1398,7 +1404,7 @@
     refreshBell();
     $("sSave").addEventListener("click", function () {
       var s = {
-        socAlerts: $("sSoc").checked, socWarn: +$("sSocWarn").value, socCritical: +$("sSocCrit").value,
+        socAlerts: $("sSoc").checked, socAlarm: $("sAlarm").checked, socWarn: +$("sSocWarn").value, socCritical: +$("sSocCrit").value,
         gridAlerts: $("sGrid").checked, sunriseAlerts: $("sSunrise").checked, connAlerts: $("sConn").checked,
         sunrise: $("sRise").value, sunset: $("sSet").value, cutoffSoc: +$("sCut").value,
         inverterW: +$("sInv").value || 0, panelsW: +$("sPanels").value || 1020
@@ -1413,6 +1419,9 @@
       refreshBell();
     });
     $("sTest").addEventListener("click", function () { window.Android.testAlert(); });
+    $("sTestAlarm").addEventListener("click", function () {
+      if (typeof window.Android.testAlarm === "function") window.Android.testAlarm();
+    });
     $("bell").addEventListener("click", function () { togglePanel("settingsCard", "bell"); });
     $("sClose").addEventListener("click", function () { togglePanel("settingsCard", "bell", false); });
   } else {

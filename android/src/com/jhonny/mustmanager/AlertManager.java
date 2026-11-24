@@ -23,7 +23,10 @@ import java.util.Locale;
 final class AlertManager {
 
     private static final String CHANNEL = "alertas";
-    private static final int ID_SOC = 100, ID_GRID = 101, ID_SUNRISE = 102, ID_CONN = 103, ID_TEST = 199;
+    private static final int ID_SOC = 100, ID_GRID = 101, ID_SUNRISE = 102, ID_CONN = 103, ID_ALARM = 104, ID_TEST = 199;
+    /** Media para la previsión del amanecer: 30 min (abarca un ciclo completo de la nevera, como la pantalla). */
+    private static final long SUNRISE_AVG_MS = 30 * 60000L;
+    private static final long ALARM_TEST_MS = 15000L;
     private static final long MIN = 60000L, HOUR = 3600000L;
 
     // Detección de la red: cuánto tiene que durar la condición y con qué potencia (W, media de 1 min).
@@ -37,8 +40,9 @@ final class AlertManager {
     private final NotificationManager nm;
     private final Handler h = new Handler(Looper.getMainLooper());
     private final SimpleDateFormat clock = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    private final AlarmPlayer alarm;
 
-    /** Ventana de 5 min de lecturas: {t, corriente A, potencia W}. */
+    /** Ventana de 30 min de lecturas: {t, corriente A, potencia W}. */
     private final ArrayDeque<double[]> window = new ArrayDeque<double[]>();
 
     private boolean socWarned, socCriticalWarned;
@@ -52,6 +56,7 @@ final class AlertManager {
     AlertManager(Context ctx) {
         this.ctx = ctx;
         this.nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        this.alarm = new AlarmPlayer(ctx);
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "Alertas de la batería", NotificationManager.IMPORTANCE_HIGH);
             ch.setDescription("Batería baja, llegada y corte de la corriente, previsión del amanecer y conexión");
@@ -65,7 +70,7 @@ final class AlertManager {
         long now = System.currentTimeMillis();
         Settings s = Settings.load(ctx);
         window.addLast(new double[]{now, b.currentA, b.voltageV * b.currentA});
-        while (!window.isEmpty() && now - window.peekFirst()[0] > 5 * MIN) window.removeFirst();
+        while (!window.isEmpty() && now - window.peekFirst()[0] > SUNRISE_AVG_MS) window.removeFirst();
 
         connectionOk();
         if (s.socAlerts) checkSoc(b, s);
@@ -87,6 +92,7 @@ final class AlertManager {
         connPending = false;
         connAlerted = false;
         nm.cancel(ID_CONN);
+        stopAlarm();
         window.clear();
         gridCondSince = 0;
     }
@@ -96,14 +102,34 @@ final class AlertManager {
             + "Puedes cambiar el sonido en Ajustes → Notificaciones → Must Manager → Alertas de la batería.");
     }
 
+    /** Prueba de la alarma: suena 15 s con su notificación y su botón Detener. */
+    void testAlarm() {
+        alarmNotification("⏰ Prueba de alarma", "Así sonará la alarma de batería baja: empieza bajito y sube poco a poco. "
+            + "Usa el sonido de alarma de tu reloj de Android.");
+        alarm.stop();
+        alarm.start(ALARM_TEST_MS);
+    }
+
+    /** Botón "Detener alarma" de la notificación, deslizarla, o el usuario pulsó Desconectar. */
+    void stopAlarm() {
+        alarm.stop();
+        nm.cancel(ID_ALARM);
+    }
+
     // ------------------------------------------------------------------ SOC bajo
 
     private void checkSoc(BmsProtocol.Basic b, Settings s) {
         if (b.soc <= s.socCritical && !socCriticalWarned) {
             socCriticalWarned = true;
             socWarned = true;
-            alert(ID_SOC, "🪫 Batería al " + b.soc + " %", "Nivel crítico: el inversor cortará al " + s.cutoffSoc
-                + " %. Apaga lo que no sea imprescindible.");
+            String text = "Nivel crítico: el inversor cortará al " + s.cutoffSoc + " %. Apaga lo que no sea imprescindible.";
+            if (s.socAlarm) {
+                // Alarma suave en vez del pitido del equipo: notificación con "Detener alarma" y sonido en bucle.
+                alarmNotification("🪫 Batería al " + b.soc + " %", text);
+                alarm.start(AlarmPlayer.MAX_MS);
+            } else {
+                alert(ID_SOC, "🪫 Batería al " + b.soc + " %", text);
+            }
         } else if (b.soc <= s.socWarn && !socWarned) {
             socWarned = true;
             alert(ID_SOC, "🔋 Batería al " + b.soc + " %", "Ha bajado del " + s.socWarn + " %. Consumo actual: "
@@ -112,6 +138,8 @@ final class AlertManager {
         // Se rearman al recuperar 5 puntos, para no repetir el aviso con cada oscilación.
         if (b.soc >= s.socWarn + 5) socWarned = false;
         if (b.soc >= s.socCritical + 5) socCriticalWarned = false;
+        // Si la batería se recupera (llegó la red o el sol), la alarma ya no tiene sentido.
+        if (b.soc > s.socCritical && b.currentA > 0.3 && alarm.isPlaying()) stopAlarm();
     }
 
     // ------------------------------------------------------------------ red eléctrica
@@ -147,8 +175,8 @@ final class AlertManager {
             sunriseAlerted = false;
             return;
         }
-        double[] avg = average(now, 5 * MIN);
-        if (avg == null || avg[2] < 4 * MIN || avg[0] > -0.3) return; // necesita ~5 min descargando
+        double[] avg = average(now, SUNRISE_AVG_MS);
+        if (avg == null || avg[2] < 4 * MIN || avg[0] > -0.3) return; // necesita al menos ~4 min descargando
         double usableAh = b.remainingAh - b.fullAh * s.cutoffSoc / 100.0;
         if (usableAh <= 0) return; // de eso ya avisa el SOC crítico
         long reach = now + (long) (usableAh / -avg[0] * HOUR);
@@ -215,6 +243,25 @@ final class AlertManager {
     private static String duration(long ms) {
         long m = Math.round(ms / (double) MIN);
         return m >= 60 ? (m / 60) + " h " + (m % 60) + " min" : m + " min";
+    }
+
+    /** Notificación de la alarma: botón "Detener alarma" y, al deslizarla, también se detiene. */
+    private void alarmNotification(String title, String text) {
+        Notification.Builder nb = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(ctx, CHANNEL) : new Notification.Builder(ctx);
+        Intent stop = new Intent(ctx, MonitorService.class).setAction(MonitorService.ACTION_STOP_ALARM);
+        PendingIntent stopPi = PendingIntent.getService(ctx, ID_ALARM, stop, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        Intent open = new Intent(ctx, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent openPi = PendingIntent.getActivity(ctx, ID_ALARM, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        nm.notify(ID_ALARM, nb.setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(new Notification.BigTextStyle().bigText(text))
+            .setContentIntent(openPi)
+            .setDeleteIntent(stopPi)
+            .addAction(new Notification.Action.Builder(null, "Detener alarma", stopPi).build())
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(false)
+            .build());
     }
 
     @SuppressWarnings("deprecation")

@@ -8,6 +8,8 @@ import org.json.JSONObject;
 /** Ajustes del usuario (alertas y horario), guardados como JSON en SharedPreferences. */
 public final class Settings {
     public boolean socAlerts = true;
+    /** El aviso urgente de batería baja suena como una alarma (melodía que sube poco a poco). */
+    public boolean socAlarm = true;
     public int socWarn = 30;
     public int socCritical = 20;
     public boolean gridAlerts = true;
@@ -39,6 +41,7 @@ public final class Settings {
         try {
             JSONObject o = new JSONObject(json);
             s.socAlerts = o.optBoolean("socAlerts", s.socAlerts);
+            s.socAlarm = o.optBoolean("socAlarm", s.socAlarm);
             s.socWarn = clamp(o.optInt("socWarn", s.socWarn), 5, 95);
             s.socCritical = clamp(o.optInt("socCritical", s.socCritical), 1, 90);
             if (s.socCritical >= s.socWarn) s.socCritical = Math.max(1, s.socWarn - 5);
@@ -59,7 +62,7 @@ public final class Settings {
     public JSONObject toJson() {
         JSONObject o = new JSONObject();
         try {
-            o.put("socAlerts", socAlerts).put("socWarn", socWarn).put("socCritical", socCritical)
+            o.put("socAlerts", socAlerts).put("socAlarm", socAlarm).put("socWarn", socWarn).put("socCritical", socCritical)
                 .put("gridAlerts", gridAlerts).put("sunriseAlerts", sunriseAlerts).put("connAlerts", connAlerts)
                 .put("sunrise", sunrise).put("sunset", sunset).put("cutoffSoc", cutoffSoc)
                 .put("inverterW", inverterW).put("panelsW", panelsW);

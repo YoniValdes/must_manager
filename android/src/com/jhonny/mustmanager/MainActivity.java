@@ -182,6 +182,16 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             });
         }
 
+        @JavascriptInterface
+        public void testAlarm() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (service != null) service.testAlarm();
+                }
+            });
+        }
+
         /** Exporta en segundo plano; al terminar llama a window.bmsExportDone({ok, name, location, rows, error}). */
         @JavascriptInterface
         public void exportData(final double from, final double to, final String format) {
