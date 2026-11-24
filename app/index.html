@@ -181,8 +181,30 @@
   .about dd { text-align: center; }
   .about .aboutOk { margin-top: 14px; min-width: 140px; }
   .about .linkBtn { background: none; color: var(--acc); padding: 4px 8px; font-size: 13px; }
+  /* Medidor de aparatos */
+  .apps h2 { align-items: center; }
+  .apps h2 button { margin-left: auto; padding: 7px 14px; font-size: 13px; }
+  .apps .empty { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .appList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+  .appItem { display: flex; align-items: center; gap: 10px; background: var(--tile); border-radius: 10px; padding: 10px 12px; }
+  .appItem .nm { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .appItem .nm small { display: block; color: var(--muted); font-size: 11px; }
+  .appItem b { font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .appItem b span { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 2px; }
+  .appItem .del { background: none; color: var(--muted); padding: 4px 6px; font-size: 14px; }
+  .meter .step { font-size: 15px; line-height: 1.5; margin: 12px 0 6px; }
+  .meter .live { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  .meter .live span { font-size: 16px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+  .meter .hint { color: var(--muted); font-size: 12px; line-height: 1.45; min-height: 18px; }
+  .meter .dots { display: flex; gap: 6px; justify-content: center; margin: 8px 0; }
+  .meter .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .meter .dots i.on { background: var(--acc); }
+  .meter .note { font-size: 12px; line-height: 1.45; color: var(--warn); margin: 6px 0; }
+  .meter input[type=text] { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--tile); color: var(--text); font: inherit; font-size: 15px; text-align: center; }
+  .meter .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
   /* Novedades tras actualizar */
-  .news .newsVer { margin-top: 8px; font-size: 22px; font-weight: 800; }
+  .about .newsVer { margin-top: 8px; font-size: 22px; font-weight: 800; }
   .news .newsSub { color: var(--muted); font-size: 13px; }
   .news ul { list-style: none; padding: 0; margin: 14px 0 4px; display: grid; gap: 10px; text-align: left; }
   .news li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
@@ -296,6 +318,21 @@
     App no oficial, sin relación con MUST Power. Úsala bajo tu responsabilidad.</p>
   <button class="linkBtn" id="aNews">✨ Ver las novedades de esta versión</button><br>
   <button id="aOk" class="aboutOk">Aceptar</button>
+</div>
+</div>
+
+<div class="modal" id="meterCard" hidden>
+<div class="card settings about meter" role="dialog" aria-modal="true" aria-labelledby="meterTitle">
+  <button class="icon close" id="mClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">🔌</div>
+  <div class="newsVer" id="meterTitle">Medir un aparato</div>
+  <div class="step" id="mStep"></div>
+  <div class="live" id="mLive"></div>
+  <div class="dots" id="mDots"></div>
+  <div class="hint" id="mHint"></div>
+  <div class="note" id="mNote" hidden></div>
+  <input type="text" id="mName" maxlength="40" placeholder="Nombre del aparato (p. ej. Ventilador)" hidden>
+  <div class="btns" id="mBtns"></div>
 </div>
 </div>
 
@@ -430,6 +467,11 @@
     <div class="tile kpi" id="kVoltage"><label>Voltaje</label><b id="voltage">--<small>V</small></b><div class="sub" id="voltageSub">&nbsp;</div></div>
     <div class="tile kpi" id="kRemaining"><label>Restante</label><b id="remaining">--<small>Ah</small></b><div class="sub" id="energy">&nbsp;</div></div>
   </div>
+</div>
+
+<div class="card apps" id="appsCard" style="margin-bottom:14px">
+  <h2>Mis aparatos <button id="mStart">＋ Medir un aparato</button></h2>
+  <div id="appList"></div>
 </div>
 
 <div class="card" id="nightCard" style="margin-bottom:14px">
@@ -814,6 +856,7 @@
 
   function renderBasic(b) {
     last.basic = b;
+    meterReading(b);
     updateBattery(last.cells ? last.cells.mv.length : cellsFromVoltage(b.voltageV), b.designAh || b.fullAh);
     document.body.classList.remove("stale");
     var socPct = Math.max(0, Math.min(100, b.soc));
@@ -1279,8 +1322,165 @@
   $("aboutCard").addEventListener("click", function (e) { if (e.target === this) closeAbout(); });
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    if (!$("newsCard").hidden) closeNews(); else if (!$("aboutCard").hidden) closeAbout();
+    if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter(); else if (!$("aboutCard").hidden) closeAbout();
   });
+
+  // ---------------------------------------------------------------- medidor de aparatos
+  // El BMS solo ve el consumo total de la casa. Para saber lo que gasta un aparato se mide el consumo
+  // con el aparato apagado, se enciende y se mide otra vez: la diferencia es lo que gasta.
+  // Consumo = −V × A (positivo descargando). Funciona igual en la web y en la APK.
+  var METER_SAMPLES = 4;       // lecturas por fase (~4 s cada una → unos 15 s)
+  var METER_CHANGE_W = 12;     // cambio mínimo para considerar que el aparato se ha encendido
+  var METER_NOISY_W = 25;      // variación de la casa a partir de la cual la medida es dudosa
+  var meter = null, appliances = [];
+  try { appliances = JSON.parse(localStorage.getItem("mm-appliances") || "[]") || []; } catch (e) { appliances = []; }
+  function saveAppliances() {
+    try { localStorage.setItem("mm-appliances", JSON.stringify(appliances)); } catch (e) { /* sin almacenamiento */ }
+  }
+  function houseW(b) { return -b.voltageV * b.currentA; }
+  function avg(a) { return a.reduce(function (s, x) { return s + x; }, 0) / a.length; }
+  function spread(a) { return Math.max.apply(null, a) - Math.min.apply(null, a); }
+
+  function renderAppliances() {
+    if (!appliances.length) {
+      $("appList").innerHTML = "<div class='empty'>Mide lo que gasta cada aparato de tu casa: la app compara el consumo " +
+        "antes y después de encenderlo. Mejor de noche o sin sol, con la casa tranquila.</div>";
+      return;
+    }
+    var list = appliances.slice().sort(function (a, b) { return b.w - a.w; });
+    $("appList").innerHTML = "<div class='appList'>" + list.map(function (a) {
+      var d = new Date(a.t);
+      return "<div class='appItem'><div class='nm'>" + esc(a.name) + "<small>medido el " +
+        d.toLocaleDateString("es", { day: "numeric", month: "short" }) + "</small></div><b>" + fmt(a.w, 0) +
+        "<span>W</span></b><button class='del' data-id='" + a.id + "' aria-label='Borrar " + esc(a.name) + "'>✕</button></div>";
+    }).join("") + "</div>";
+  }
+  $("appList").addEventListener("click", function (e) {
+    var btn = e.target.closest(".del");
+    if (!btn) return;
+    var a = appliances.filter(function (x) { return String(x.id) === btn.dataset.id; })[0];
+    if (a && confirm("¿Borrar «" + a.name + "» de la lista?")) {
+      appliances = appliances.filter(function (x) { return x !== a; });
+      saveAppliances();
+      renderAppliances();
+    }
+  });
+
+  function meterFresh() { return last.basic && meter && meter.lastAt && Date.now() - meter.lastAt < 15000; }
+  function meterDots(n) {
+    var h = "";
+    for (var i = 0; i < METER_SAMPLES; i++) h += "<i class='" + (i < n ? "on" : "") + "'></i>";
+    $("mDots").innerHTML = h;
+  }
+  function meterButtons(list) {
+    $("mBtns").innerHTML = list.map(function (b, i) {
+      return "<button data-i='" + i + "'" + (b.secondary ? " class='secondary'" : "") + ">" + b.text + "</button>";
+    }).join("");
+    meter.actions = list.map(function (b) { return b.fn; });
+  }
+  $("mBtns").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (b && meter && meter.actions[+b.dataset.i]) meter.actions[+b.dataset.i]();
+  });
+
+  // Pasos: ready → base (aparato apagado) → wait (encenderlo) → on (medir encendido) → result
+  function meterShow(stage) {
+    meter.stage = stage;
+    $("mNote").hidden = true;
+    $("mName").hidden = true;
+    $("mDots").innerHTML = "";
+    if (stage === "ready") {
+      $("mStep").innerHTML = "1. Deja el aparato <b>apagado</b>.<br>2. No enciendas ni apagues nada más mientras se mide.";
+      $("mHint").textContent = connected() ? "Consumo de la casa ahora mismo" : "Conecta primero con el BMS.";
+      meterButtons([{ text: "Empezar", fn: function () { meter.base = []; meterShow("base"); } }]);
+    } else if (stage === "base") {
+      $("mStep").innerHTML = "Midiendo la casa con el aparato <b>apagado</b>…";
+      $("mHint").textContent = "Unos 15 segundos. No toques nada.";
+      meterDots(meter.base.length);
+      meterButtons([{ text: "Cancelar", secondary: true, fn: closeMeter }]);
+    } else if (stage === "wait") {
+      $("mStep").innerHTML = "Ahora <b>enciende el aparato</b>.";
+      $("mHint").textContent = "Cuando detecte el cambio, medirá solo. Si el aparato gasta muy poco, pulsa «Ya está encendido».";
+      meterButtons([{ text: "Ya está encendido", fn: function () { meter.on = []; meter.skip = 1; meterShow("on"); } },
+        { text: "Cancelar", secondary: true, fn: closeMeter }]);
+    } else if (stage === "on") {
+      $("mStep").innerHTML = "Midiendo con el aparato <b>encendido</b>…";
+      $("mHint").textContent = "Unos segundos más.";
+      meterDots(meter.on.length);
+      meterButtons([{ text: "Cancelar", secondary: true, fn: closeMeter }]);
+    } else if (stage === "result") {
+      var base = avg(meter.base), on = avg(meter.on), w = Math.abs(on - base);
+      meter.result = w;
+      $("mStep").innerHTML = "Este aparato gasta unos";
+      $("mLive").innerHTML = fmt(w, 0) + "<span>W</span>";
+      $("mHint").textContent = "Casa: " + fmt(base, 0) + " W sin el aparato → " + fmt(on, 0) + " W con él.";
+      var notes = [];
+      if (on < base) notes.push("El consumo bajó en vez de subir: ¿estaba encendido al empezar? El valor sigue siendo válido.");
+      if (spread(meter.base) > METER_NOISY_W || spread(meter.on) > METER_NOISY_W)
+        notes.push("El consumo de la casa variaba durante la medida (¿una nevera arrancando?). Repítela para confirmar.");
+      if (meter.sun) notes.push("Había carga del sol o de la red: varía y puede falsear la medida. Mejor de noche o sin carga.");
+      if (w < METER_CHANGE_W) notes.push("Cambio muy pequeño: puede ser solo la variación normal de la casa.");
+      if (notes.length) { $("mNote").innerHTML = notes.map(esc).join("<br>"); $("mNote").hidden = false; }
+      $("mName").hidden = false;
+      $("mName").value = "";
+      $("mName").focus();
+      meterButtons([{ text: "Guardar", fn: saveMeter }, { text: "Repetir", secondary: true, fn: function () { meterShow("ready"); } }]);
+    }
+  }
+  function meterReading(b) {
+    if (!meter) return;
+    meter.lastAt = Date.now();
+    var w = houseW(b);
+    if (b.currentA >= IDLE_A && (meter.stage === "base" || meter.stage === "on")) meter.sun = true;
+    if (meter.stage !== "result") $("mLive").innerHTML = fmt(w, 0) + "<span>W</span>";
+    if (meter.stage === "base") {
+      meter.base.push(w);
+      meterDots(meter.base.length);
+      if (meter.base.length >= METER_SAMPLES) meterShow("wait");
+    } else if (meter.stage === "wait") {
+      // Cambio claro respecto a la casa sin el aparato, en dos lecturas seguidas (no un pico suelto).
+      var changed = Math.abs(w - avg(meter.base)) > Math.max(METER_CHANGE_W, spread(meter.base));
+      meter.hits = changed ? (meter.hits || 0) + 1 : 0;
+      if (meter.hits >= 2) { meter.on = []; meter.skip = 1; meterShow("on"); }
+    } else if (meter.stage === "on") {
+      if (meter.skip > 0) { meter.skip--; return; } // deja que el aparato arranque (motores, compresores)
+      meter.on.push(w);
+      meterDots(meter.on.length);
+      if (meter.on.length >= METER_SAMPLES) meterShow("result");
+    }
+  }
+  function connected() { return $("status").dataset.state === "connected" && !!last.basic; }
+  function openMeter() {
+    meter = { stage: "ready", base: [], on: [], lastAt: last.basic ? Date.now() : 0, sun: false, hits: 0 };
+    $("mLive").innerHTML = last.basic ? fmt(houseW(last.basic), 0) + "<span>W</span>" : "--";
+    meterShow("ready");
+    $("meterCard").hidden = false;
+    document.body.classList.add("modalOpen");
+  }
+  function closeMeter() {
+    meter = null;
+    $("meterCard").hidden = true;
+    document.body.classList.remove("modalOpen");
+  }
+  function saveMeter() {
+    var name = $("mName").value.trim();
+    if (!name) { $("mName").focus(); $("mName").placeholder = "Escribe un nombre para guardarlo"; return; }
+    appliances.push({ id: Date.now(), name: name, w: Math.round(meter.result), t: Date.now() });
+    saveAppliances();
+    renderAppliances();
+    closeMeter();
+  }
+  $("mName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveMeter(); });
+  $("mStart").addEventListener("click", openMeter);
+  $("mClose").addEventListener("click", closeMeter);
+  $("meterCard").addEventListener("click", function (e) { if (e.target === this) closeMeter(); });
+  // Si se pierde la conexión a mitad de medida, se avisa en vez de seguir esperando.
+  setInterval(function () {
+    if (meter && (meter.stage === "base" || meter.stage === "wait" || meter.stage === "on") && !meterFresh()) {
+      $("mHint").textContent = "No llegan lecturas del BMS. Comprueba la conexión.";
+    }
+  }, 5000);
+  renderAppliances();
 
   // ---------------------------------------------------------------- novedades tras actualizar
   // Al abrir una versión distinta de la última vista, se enseñan las novedades (changelog.js) una vez.
