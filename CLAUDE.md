@@ -74,7 +74,7 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 4. Registro periódico local y gráficas. ✅ Hecho (v0.4–v0.9): servicio en primer plano, SQLite, resumen de la noche, gráficas de 24 h, alertas y trama de estado. Detalle en "Estado de la app".
 5. Exportar a CSV y XLSX. ✅ Hecho (v0.10–v0.11).
    - Parte visual (v0.12–v0.20) hecha también: escena del cielo, Personalizar, KPIs con estado, medidores de la noche, panel a todo el ancho, Acerca de.
-6. Pulido para compartir: icono, instrucciones de instalación y manejo de errores. ← SIGUIENTE. Hay ya una infografía de ayuda (`docs/infografia/`). Falta: icono definitivo, guía de instalación para los amigos (APK desde fuera de Play Store en Samsung), probar con otra unidad del BMS y CI/CD con GitHub Actions para publicar releases.
+6. Compartir con los amigos. ✅ Hecho: la APK v0.20 ya la usan amigos de Jhonny con el mismo sistema. Lleva la infografía de ayuda (`docs/infografia/`) y el botón Acerca de con el correo de contacto. Opcional, sin prisa: publicar versiones con GitHub Actions.
 - **Idea futura (sin internet):** calcular el amanecer y el atardecer de cada día con la fórmula astronómica (NOAA) a partir de la latitud, la longitud y la fecha. El usuario elegiría su provincia o municipio en una lista de coordenadas guardada en la app. Ahora son horas fijas en Ajustes (07:00 / 18:00), y en Cuba varían más de 1 h a lo largo del año.
 7. **Fase futura: leer el inversor** (cuando la app del BMS esté completa). El BMS solo ve la corriente neta de la batería (sol + red − consumo), así que no puede separar el aporte de los paneles ni el consumo real de la casa con sol. Solo el inversor conoce los W de FV, de red y de carga. Hay que averiguar su puerto de comunicación (independiente del BMS) y su protocolo, y capturar y descifrar el tráfico como con el BMS. Mientras tanto, la tarjeta de autonomía avisa de día de que la estimación incluye el sol y que es fiable de noche.
 
@@ -124,4 +124,4 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.20). Cada versión es
 - Nombre del proyecto y de la APK decidido: **Must Manager**.
 - Paso 1 hecho (23-nov-2026): servicios BLE descubiertos (ver sección "Servicios BLE del BMS").
 - Paso 2 hecho (23-nov-2026): protocolo descifrado desde el HCI log; todos los valores coinciden con la lectura de referencia.
-- Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Siguiente: paso 6 (pulido para compartir).
+- Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Paso 6 hecho: la v0.20 ya está compartida con amigos que tienen el mismo sistema.
