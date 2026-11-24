@@ -165,8 +165,12 @@
     padding: 16px; background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px); animation: modalFade .18s ease-out; }
   /* Borde de neón con el color de acento de la paleta, y entrada creciendo de pequeño a grande
      con un ligero rebote al final (no un simple fundido). */
-  .modal .about { width: 100%; max-width: 400px; max-height: calc(100vh - 32px); overflow-y: auto; margin: 0;
-    padding: 22px 20px 18px; border: 1px solid color-mix(in srgb, var(--acc) 70%, transparent);
+  /* Alto máximo: 640 px o el alto VISIBLE menos un margen (100dvh descuenta la barra de Chrome en
+     Android; 100vh no, y la ventana se salía por arriba y por abajo con la tablet en horizontal).
+     Si el contenido no cabe, se desplaza dentro de la ventana. */
+  .modal .about { width: 100%; max-width: 400px; margin: 0; overflow-y: auto; overscroll-behavior: contain;
+    max-height: min(640px, calc(100vh - 64px)); max-height: min(640px, calc(100dvh - 64px));
+    padding: 18px 18px 16px; border: 1px solid color-mix(in srgb, var(--acc) 70%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 35%, transparent), 0 0 18px color-mix(in srgb, var(--acc) 45%, transparent),
       0 0 46px color-mix(in srgb, var(--acc) 22%, transparent), 0 18px 50px rgba(0, 0, 0, .55);
     transform-origin: 50% 50%; animation: modalPop .42s cubic-bezier(.2, .9, .3, 1.25) both; }
@@ -183,18 +187,22 @@
   }
   @media (prefers-reduced-motion: reduce) { .modal, .modal .about { animation: none; } }
   body.modalOpen { overflow: hidden; }
-  .about { position: relative; font-size: 14px; line-height: 1.55; text-align: center; }
-  .about .close { position: absolute; top: 12px; right: 12px; }
-  .about .aboutLogo { font-size: 34px; line-height: 1; margin-top: 4px; }
-  .about .aboutHead { margin-top: 8px; font-size: 22px; }
-  .about .aboutHead span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
-  .about p { margin: 10px 0; }
-  .about ul { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 6px; }
-  .about dl { display: block; padding: 10px 0; margin: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  .about dt { margin-top: 4px; font-size: 12px; }
-  .about dd { text-align: center; }
-  .about .aboutOk { margin-top: 14px; min-width: 140px; }
-  .about .linkBtn { background: none; color: var(--acc); padding: 4px 8px; font-size: 13px; }
+  .about { position: relative; font-size: 13px; line-height: 1.5; text-align: center; }
+  .about .close { position: absolute; top: 10px; right: 10px; }
+  .about .aboutLogo { font-size: 28px; line-height: 1; margin-top: 2px; }
+  .about .aboutHead { margin-top: 6px; font-size: 19px; }
+  .about .aboutHead span { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+  .about p { margin: 8px 0; }
+  .about ul { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
+  .about dl { display: grid; grid-template-columns: auto auto; justify-content: center; gap: 2px 10px;
+    padding: 8px 0; margin: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .about dt { font-size: 12px; text-align: right; }
+  .about dd { text-align: left; }
+  .about .aboutOk { margin-top: 12px; min-width: 130px; }
+  .about .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .about .btns .aboutOk { margin-top: 0; }
+  /* Pantallas bajas (tablet en horizontal, móvil apaisado): sin el emoji grande, para ganar altura */
+  @media (max-height: 620px) { .modal .about .aboutLogo { display: none; } .modal .about { padding-top: 14px; } }
   /* Medidor de aparatos */
   .modal .apps { max-width: 460px; }
   /* Personalizar: fondo más claro y sin difuminar, para ver cómo cambia la app de detrás al elegir */
@@ -225,16 +233,18 @@
     border: 1px solid var(--line); background: var(--tile); color: var(--text); font: inherit; font-size: 15px; text-align: center; }
   .meter .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
   /* Novedades tras actualizar */
-  .about .newsVer { margin-top: 8px; font-size: 22px; font-weight: 800; }
-  .news .newsSub { color: var(--muted); font-size: 13px; }
-  .news ul { list-style: none; padding: 0; margin: 14px 0 4px; display: grid; gap: 10px; text-align: left; }
-  .news li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  /* Novedades: más ancha (menos líneas por frase) y con más margen arriba y abajo; el resto se desplaza */
+  .modal .news { max-width: 520px; max-height: min(600px, calc(100vh - 96px)); max-height: min(600px, calc(100dvh - 96px)); }
+  .about .newsVer { margin-top: 6px; font-size: 19px; font-weight: 800; }
+  .about .newsSub { color: var(--muted); font-size: 12px; }
+  .news ul { list-style: none; padding: 0; margin: 10px 0 2px; display: grid; gap: 7px; text-align: left; }
+  .news li { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; line-height: 1.4; }
   .news .tag { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; margin-top: 1px; white-space: nowrap;
     min-width: 76px; text-align: center; box-sizing: border-box; }
   .news .t-new { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
   .news .t-fix { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
   .news .t-imp { background: color-mix(in srgb, var(--charge) 22%, transparent); color: #7cc4f0; }
-  .news h3 { font-size: 13px; color: var(--muted); margin: 16px 0 0; text-align: left; border-top: 1px solid var(--line); padding-top: 12px; }
+  .news h3 { font-size: 12px; color: var(--muted); margin: 12px 0 0; text-align: left; border-top: 1px solid var(--line); padding-top: 12px; }
   .about a { color: var(--acc); font-weight: 600; }
   .about .sub { color: var(--muted); font-size: 12px; }
   /* Tarjeta del SOC cuadrada (su lado ≈ el alto de los cuatro KPIs) */
@@ -328,21 +338,19 @@
   <button class="icon close" id="aClose" aria-label="Cerrar">✕</button>
   <div class="aboutLogo" aria-hidden="true">🔋</div>
   <div class="aboutHead"><b id="aboutTitle">Must Manager</b> <span id="aboutVer"></span></div>
-  <p>Monitor de la batería LiFePO4 de los equipos solares <b>Must HBP</b> (24 V y 48 V, como el HBP3000 LV y el HBP3300 TLV). Lee el BMS por Bluetooth,
-    guarda el historial en el dispositivo, calcula si llegas al amanecer y exporta los datos a CSV o Excel.</p>
+  <p>Monitor por Bluetooth de la batería de los equipos solares <b>Must HBP</b> de 24 V y 48 V.
+    Guarda el historial, calcula si llegas al amanecer y exporta a Excel o CSV.</p>
   <ul>
-    <li><b>Solo lectura:</b> nunca cambia la configuración ni las protecciones del BMS.</li>
-    <li><b>Sin internet:</b> todo funciona y se guarda en el dispositivo.</li>
-    <li>Cierra <b>BMS tools</b> antes de conectar: el BMS admite una sola conexión.</li>
+    <li><b>Solo lectura</b> y <b>sin internet</b>: nunca cambia nada del BMS.</li>
+    <li>Cierra <b>BMS tools</b> antes de conectar.</li>
   </ul>
   <dl>
     <dt>Autor</dt><dd>Jhonny Valdes</dd>
     <dt>Contacto</dt><dd><a id="aboutMail" href="mailto:yonivaldes82@gmail.com?subject=Must%20Manager">yonivaldes82@gmail.com</a></dd>
   </dl>
-  <p class="sub">¿Ideas, fallos o algo que no se entiende? Escríbeme, me ayuda a mejorarla.<br>
+  <p class="sub">¿Ideas o fallos? Escríbeme, me ayuda a mejorarla.<br>
     App no oficial, sin relación con MUST Power. Úsala bajo tu responsabilidad.</p>
-  <button class="linkBtn" id="aNews">✨ Ver las novedades de esta versión</button><br>
-  <button id="aOk" class="aboutOk">Aceptar</button>
+  <div class="btns"><button class="secondary" id="aNews">✨ Novedades</button><button id="aOk" class="aboutOk">Aceptar</button></div>
 </div>
 </div>
 
