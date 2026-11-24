@@ -171,6 +171,11 @@
       0 0 46px color-mix(in srgb, var(--acc) 22%, transparent), 0 18px 50px rgba(0, 0, 0, .55);
     transform-origin: 50% 50%; animation: modalPop .42s cubic-bezier(.2, .9, .3, 1.25) both; }
   @keyframes modalFade { from { opacity: 0; } }
+  /* Al cerrar: se encoge hacia el centro y se desvanece (lo contrario de abrir). */
+  .modal.closing { animation: modalFadeOut .24s ease-in forwards; pointer-events: none; }
+  .modal.closing .about { animation: modalShrink .24s cubic-bezier(.5, 0, .75, .3) forwards; }
+  @keyframes modalFadeOut { to { opacity: 0; } }
+  @keyframes modalShrink { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.35); } }
   @keyframes modalPop {
     0% { opacity: 0; transform: scale(.35); }
     55% { opacity: 1; }
@@ -1477,13 +1482,13 @@
     meter = { fromApps: fromApps, stage: "ready", base: [], on: [], lastAt: last.basic ? Date.now() : 0, sun: false, hits: 0 };
     $("mLive").innerHTML = last.basic ? fmt(houseW(last.basic), 0) + "<span>W</span>" : "--";
     meterShow("ready");
-    $("meterCard").hidden = false;
+    showModal($("meterCard"));
     document.body.classList.add("modalOpen");
   }
   function closeMeter() {
     var back = meter && meter.fromApps;
     meter = null;
-    $("meterCard").hidden = true;
+    hideModal($("meterCard"));
     document.body.classList.remove("modalOpen");
     if (back) togglePanel("appsCard", "appsBtn", true); // vuelve a la lista, ya con el aparato nuevo
   }
@@ -1539,13 +1544,13 @@
       }).join("") + "</ul>";
     }).join("");
     togglePanel("aboutCard", "aboutBtn", false);
-    $("newsCard").hidden = false;
+    showModal($("newsCard"));
     document.body.classList.add("modalOpen");
     $("nOk").focus();
     return true;
   }
   function closeNews() {
-    $("newsCard").hidden = true;
+    hideModal($("newsCard"));
     document.body.classList.remove("modalOpen");
     if (currentVersion) { try { localStorage.setItem("mm-seen-version", currentVersion); } catch (e) { /* sin almacenamiento */ } }
   }
@@ -1567,18 +1572,38 @@
   if (/[?&]panel=about/.test(location.search)) togglePanel("aboutCard", "aboutBtn", true);
 
   // Paneles de la cabecera (exportar y ajustes): solo uno abierto a la vez.
+  // Ventanas emergentes: se abren y se cierran siempre con estas dos funciones, para que el cierre
+  // espere a que termine su animación antes de ocultarlas.
+  // (Funciones y no variables: la ventana de novedades se abre al arrancar, antes de llegar aquí.)
+  function isModalId(id) { return id === "aboutCard" || id === "appsCard" || id === "newsCard" || id === "meterCard"; }
+  function modalCloseMs() { return 240; }
+  function reducedMotion() { return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  function showModal(el) {
+    clearTimeout(el._closeTimer);
+    el.classList.remove("closing");
+    el.hidden = false;
+  }
+  function hideModal(el) {
+    if (el.hidden || el.classList.contains("closing")) return;
+    if (reducedMotion()) { el.hidden = true; return; }
+    el.classList.add("closing");
+    el._closeTimer = setTimeout(function () { el.classList.remove("closing"); el.hidden = true; }, modalCloseMs());
+  }
+
   function togglePanel(cardId, btnId, force) {
-    var open = typeof force === "boolean" ? force : $(cardId).hidden;
+    var cur = $(cardId), open = typeof force === "boolean" ? force : (cur.hidden || cur.classList.contains("closing"));
     [["appsCard", "appsBtn"], ["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"], ["aboutCard", "aboutBtn"]].forEach(function (p) {
-      $(p[0]).hidden = true;
+      if (isModalId(p[0])) { if (p[0] !== cardId || !open) hideModal($(p[0])); }
+      else $(p[0]).hidden = true;
       $(p[1]).setAttribute("aria-expanded", "false");
     });
-    $(cardId).hidden = !open;
+    if (isModalId(cardId)) { if (open) showModal(cur); }
+    else cur.hidden = !open;
     $(btnId).setAttribute("aria-expanded", String(open));
     // Acerca de y Mis aparatos son ventanas emergentes: no hace falta subir, pero sí bloquear el scroll de detrás.
-    var isModal = cardId === "aboutCard" || cardId === "appsCard";
-    document.body.classList.toggle("modalOpen", open && isModal);
-    if (open && !isModal) window.scrollTo({ top: 0, behavior: "smooth" });
+    var modalNow = isModalId(cardId);
+    document.body.classList.toggle("modalOpen", open && modalNow);
+    if (open && !modalNow) window.scrollTo({ top: 0, behavior: "smooth" });
     if (open && cardId === "aboutCard") $("aOk").focus();
     if (open && cardId === "exportCard") updateExportCount();
   }
