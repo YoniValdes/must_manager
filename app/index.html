@@ -113,6 +113,8 @@
   .eta .chip.verdict { border-color: var(--neon); box-shadow: 0 0 10px -2px var(--neon); }
   .eta .chip b { font-variant-numeric: tabular-nums; }
   /* Cielo: estrellas que titilan y sol que respira (muy suave, para no gastar batería) */
+  #trees .td { fill: var(--tree-d); } #trees .tl { fill: var(--tree-l); }
+  #treesFar .td { fill: var(--treefar-d); } #treesFar .tl { fill: var(--treefar-l); }
   .sky .star { fill: #fff; animation: twinkle 3.5s ease-in-out infinite alternate; }
   .sky #sunCore { animation: breathe 6s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
   @keyframes twinkle { from { opacity: .25; } to { opacity: 1; } }
@@ -500,8 +502,7 @@
       <radialGradient id="sunGlow"><stop offset="0" stop-color="#fff7d6"/><stop offset=".3" stop-color="#fde68a" stop-opacity=".85"/>
         <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/></radialGradient>
       <radialGradient id="moonGlow"><stop offset="0" stop-color="#dbe4ff" stop-opacity=".5"/><stop offset="1" stop-color="#dbe4ff" stop-opacity="0"/></radialGradient>
-      <mask id="crescent" maskContentUnits="userSpaceOnUse"><circle r="12" fill="#fff"/><circle cx="6" cy="-4" r="11" fill="#000"/></mask>
-    </defs>
+      <mask id="crescent" maskContentUnits="userSpaceOnUse"><circle r="12" fill="#fff"/><circle cx="6" cy="-4" r="11" fill="#000"/></mask>    </defs>
     <g id="stars"></g>
     <g id="sun"><circle r="46" fill="url(#sunGlow)"/><circle id="sunCore" r="14" fill="#fff4c2"/></g>
     <g id="moon"><circle r="34" fill="url(#moonGlow)"/><circle r="12" fill="#f1f5ff" mask="url(#crescent)"/></g>
@@ -513,12 +514,10 @@
     </g>
     <!-- Colinas bajas en tres capas (la mitad superior queda libre para el cielo) -->
     <path id="hillFar" d="M0 150 C 150 132, 310 142, 470 148 S 800 128, 1000 142 L1000 200 L0 200 Z"/>
+    <!-- Árboles: los dibuja makeTrees() encima de cada colina (los de la colina lejana, más pequeños y claros) -->
+    <g id="treesFar"></g>
     <path id="hillMid" d="M0 165 C 180 151, 370 167, 560 158 S 860 148, 1000 158 L1000 200 L0 200 Z"/>
-    <g id="trees">
-      <rect x="639" y="148" width="2.2" height="11"/><ellipse cx="640.1" cy="145" rx="4.2" ry="7.5"/>
-      <rect x="653" y="150" width="2.2" height="9"/><ellipse cx="654.1" cy="147.5" rx="3.5" ry="6.2"/>
-      <rect x="666" y="149" width="2.2" height="10"/><ellipse cx="667.1" cy="146" rx="4" ry="7"/>
-    </g>
+    <g id="trees"></g>
     <path id="hillNear" d="M0 181 C 220 170, 430 187, 650 177 S 900 168, 1000 176 L1000 200 L0 200 Z"/>
   </svg>
   <div class="content">
@@ -801,6 +800,60 @@
     g.innerHTML = html;
   })();
 
+  // Árboles planos de copa redonda en dos tonos (sombra y luz), del mismo estilo que las colinas,
+  // agrupados en bosquecillos. Se apoyan justo sobre la curva de su colina.
+  // Copa redonda: tronco y tres bolas, con un brillo arriba a la izquierda.
+  var TREE_SHAPE = '<rect class="td" x="-1.2" y="-7" width="2.4" height="7.5" rx="1"/>' +
+    '<circle class="td" cx="-3.6" cy="-8.5" r="4.4"/><circle class="td" cx="3.6" cy="-8.5" r="4.4"/>' +
+    '<circle class="td" cx="0" cy="-12" r="5.6"/><circle class="tl" cx="-1.8" cy="-13.4" r="2.9"/>' +
+    '<circle class="tl" cx="-4.6" cy="-9.4" r="1.9"/>';
+  // Bosquecillos: [x del centro, nº de árboles, escala del más grande]. Pocos a la izquierda (ahí va
+  // el texto), más hacia la derecha; los de la colina del fondo, más pequeños.
+  var CLUSTERS_FAR = [[250, 2, 0.5], [415, 3, 0.55], [540, 2, 0.5], [775, 4, 0.6], [880, 3, 0.55], [985, 2, 0.5]];
+  var CLUSTERS_MID = [[90, 2, 0.75], [330, 3, 0.8], [590, 4, 1.05], [700, 2, 0.85], [830, 3, 0.95], [950, 4, 1]];
+  // Reparte los árboles de cada grupo: posiciones y tamaños pseudoaleatorios pero fijos (no "saltan"
+  // al refrescar). Los pequeños, detrás y un poco más arriba. (No se giran: el brillo siempre a la
+  // izquierda, como si la luz viniera del mismo lado.)
+  function clusterTrees(clusters, seed) {
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    var out = [];
+    clusters.forEach(function (c) {
+      var trees = [];
+      for (var i = 0; i < c[1]; i++) {
+        trees.push({ x: c[0] + (i - (c[1] - 1) / 2) * 8 * c[2] + (rnd() - 0.5) * 5 * c[2],
+          s: c[2] * (i === 0 || rnd() > 0.5 ? 1 : 0.62 + rnd() * 0.3),
+          h: 0.75 + rnd() * 0.6 }); // altura: de un 75 % a un 135 % (unos más bajitos, otros más espigados)
+      }
+      trees.sort(function (a, b) { return a.s - b.s; }); // los pequeños primero: quedan detrás
+      out = out.concat(trees);
+    });
+    return out;
+  }
+  // Altura de la colina en x (la curva de arriba del trazado), buscando sobre el propio trazado SVG.
+  function hillY(path, x) {
+    // El trazado es: curva de arriba → bajada vertical en x=1000 → línea de vuelta a x=0 → cierre.
+    // Se busca hasta el final de la bajada vertical (ahí x no decrece, así que la búsqueda vale).
+    var len = path.getTotalLength(), lo = 0, hi = len - 1000 - (200 - path.getPointAtLength(0).y);
+    for (var i = 0; i < 30; i++) {
+      var mid = (lo + hi) / 2;
+      if (path.getPointAtLength(mid).x < x) lo = mid; else hi = mid;
+    }
+    return path.getPointAtLength(lo).y;
+  }
+  (function makeTrees() {
+    function place(g, hill, list) {
+      g.innerHTML = list.map(function (t) {
+        // Un poco hundido para que no flote; los pequeños, algo más arriba (parecen más lejos).
+        var y = hillY(hill, t.x) + 1.2 - (1 - t.s) * 2;
+        return "<g transform='translate(" + t.x.toFixed(1) + " " + y.toFixed(1) + ") scale(" + t.s.toFixed(2) + " " + (t.s * t.h).toFixed(2) + ")'>" + TREE_SHAPE + "</g>";
+      }).join("");
+    }
+    try {
+      place($("treesFar"), $("hillFar"), clusterTrees(CLUSTERS_FAR, 11));
+      place($("trees"), $("hillMid"), clusterTrees(CLUSTERS_MID, 5));
+    } catch (e) { /* sin geometría SVG (navegador muy antiguo): la escena sigue sin árboles */ }
+  })();
+
   // Para revisar la escena a cualquier hora: index.html?hora=21:30 (solo pruebas en el navegador).
   var SKY_TEST = (location.search.match(/[?&]hora=(\d{1,2}):(\d{2})/) || null);
   function updateSky() {
@@ -833,7 +886,11 @@
     $("hillFar").setAttribute("fill", c.far);
     $("hillMid").setAttribute("fill", c.mid);
     $("hillNear").setAttribute("fill", c.near);
-    $("trees").setAttribute("fill", darken(c.mid, 0.35));
+    // Árboles en dos tonos: sombra y luz, sacados del color de su colina (los lejanos, más suaves).
+    eta.style.setProperty("--tree-d", darken(c.mid, 0.4));
+    eta.style.setProperty("--tree-l", darken(c.mid, 0.2));
+    eta.style.setProperty("--treefar-d", darken(c.far, 0.28));
+    eta.style.setProperty("--treefar-l", darken(c.far, 0.12));
     $("clouds").setAttribute("fill", c.cloud);
     $("clouds").setAttribute("opacity", c.co.toFixed(2));
 
@@ -846,7 +903,13 @@
     // Arco por la mitad derecha (la izquierda la ocupa el texto): así se ve asomar tras las colinas.
     // Cerca del horizonte el resplandor crece, como al amanecer y al atardecer de verdad.
     var lift = Math.sin(p * Math.PI);
-    var x = 470 + p * 480, y = 178 - lift * 140, glowScale = 1 + (1 - lift) * 0.45;
+    // Parte visible del lienzo: en tarjetas anchas y bajas (tablet o móvil en horizontal) se recorta por
+    // arriba, y en las estrechas por los lados. El sol, la luna, las nubes y las estrellas se bajan lo que
+    // se recorte, y el arco se ajusta al ancho visible, para que nunca queden cortados por el borde.
+    var v = skyView();
+    var x = v.left + (v.right - v.left) * (0.47 + p * 0.48), y = 178 - lift * (140 - v.top), glowScale = 1 + (1 - lift) * 0.45;
+    $("clouds").setAttribute("transform", "translate(0 " + v.top.toFixed(1) + ")");
+    $("stars").setAttribute("transform", "translate(0 " + v.top.toFixed(1) + ")");
     var tf = "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ") scale(" + glowScale.toFixed(2) + ")";
     $("sun").setAttribute("transform", tf);
     $("moon").setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")");
@@ -856,8 +919,24 @@
     var night = isDay ? 0 : Math.min(1, mod(now - s) / 60, mod(r - now) / 45);
     $("stars").setAttribute("opacity", night.toFixed(2));
   }
+  // Qué parte del lienzo de 1000 × 200 se ve en la tarjeta ("xMidYMax slice": cubre la tarjeta, apoyado abajo).
+  function skyView() {
+    var el = $("eta"), w = el.clientWidth, h = el.clientHeight;
+    if (!w || !h) return { top: 0, left: 0, right: 1000 };
+    var s = Math.max(w / 1000, h / 200), visW = w / s, visH = h / s;
+    return { top: Math.max(0, 200 - visH), left: Math.max(0, (1000 - visW) / 2), right: Math.min(1000, (1000 + visW) / 2) };
+  }
   updateSky();
   setInterval(updateSky, 60000);
+  // Al girar la pantalla o cambiar el tamaño de la tarjeta, se recoloca al momento.
+  if (window.ResizeObserver) {
+    var skyPending = false;
+    new ResizeObserver(function () {
+      if (skyPending) return;
+      skyPending = true;
+      requestAnimationFrame(function () { skyPending = false; updateSky(); });
+    }).observe($("eta"));
+  }
 
   // ---------------------------------------------------------------- campana: rellena = alertas activas
   function refreshBell() {
