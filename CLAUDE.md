@@ -90,7 +90,8 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
 - La pantalla detecta la batería sola: nº de celdas de la trama `0A 02` (antes de recibirla, por el voltaje: > 36 V → 16) y capacidad de diseño en Ah. kWh = celdas × 3,2 V × Ah. Se guarda en `localStorage` (`mm-battery`) para el historial sin conexión.
 - Los umbrales del voltaje van **por celda** (3,0 / 3,1 / 3,55 / 3,6 V).
 - Ajustes nuevos: **Inversor** en W (vacío = automático: 24 V → 3000 W, 48 V → 6000 W; mide el medidor de pico, con verde < 50 % y ámbar < 80 %) y **Paneles** en W (1020 por defecto). De día, "llegó la corriente" salta por encima de paneles × 1,03 (antes, 1050 W fijos).
-- Exportar: tantas columnas "Celda N" como celdas tenga la batería (las de la lectura más reciente del periodo). Cada versión es un commit `vX.Y: …` con el detalle en el cuerpo del mensaje (`git log`).
+- Exportar: tantas columnas "Celda N" como celdas tenga la batería (las de la lectura más reciente del periodo).
+- **Varias baterías en paralelo:** al conectar se pide una vez el resumen (`0A 00`, ya en la lista blanca; antes no se usaba) y su byte 0 da el nº de baterías (`BmsProtocol.parsePackCount`, mensaje `{type:"packs"}`). Si hay más de una, un aviso ámbar bajo la barra de estado dice que solo se muestra la batería 1. **Pendiente:** mostrar el total, para lo que hace falta una captura de BMS tools de alguien con 2 baterías (los datos de cada pack y los del resumen). Cada versión es un commit `vX.Y: …` con el detalle en el cuerpo del mensaje (`git log`).
 
 **Java (`android/src/com/jhonny/mustmanager/`)**
 - `MainActivity`: WebView con `app/` y puente `Android` hacia la página. Los enlaces `mailto:` abren la app de correo; cualquier otra navegación fuera de `file:///android_asset/` se bloquea.

@@ -51,6 +51,9 @@ public class BmsClient {
         void onCells(BmsProtocol.Cells cells);
 
         void onStatusBytes(byte[] data);
+
+        /** Nº de baterías en paralelo según el resumen (0A 00). La app solo muestra la batería 1. */
+        void onPackCount(int packs);
     }
 
     private static final UUID SERVICE = UUID.fromString(BmsProtocol.SERVICE_UUID);
@@ -91,7 +94,9 @@ public class BmsClient {
     private String targetName;
     private boolean polling;
     private int cycleIndex;
-    private boolean serialRequested;
+    /** Preguntas que se hacen una sola vez al conectar, antes del ciclo (como BMS tools). */
+    private static final byte[][] START = { BmsProtocol.CMD_DEVICE_INFO, BmsProtocol.CMD_SUMMARY };
+    private int startIndex;
     private int waitingKey = -1;
     private long lastGoodFrameAt;
     private boolean everGotData;
@@ -375,7 +380,7 @@ public class BmsClient {
                     lastGoodFrameAt = System.currentTimeMillis();
                     polling = true;
                     cycleIndex = 0;
-                    serialRequested = false;
+                    startIndex = 0;
                     // Al activar las notificaciones el BMS manda solo su información; esperamos un poco.
                     h.postDelayed(pollNext, 800);
                     h.postDelayed(watchdog, 5000);
@@ -440,8 +445,8 @@ public class BmsClient {
         @Override
         public void run() {
             if (!polling || gatt == null || txChar == null) return;
-            // Al conectar, primero se pide una vez el número de serie (como BMS tools).
-            byte[] cmd = serialRequested ? CYCLE[cycleIndex] : BmsProtocol.CMD_DEVICE_INFO;
+            // Al conectar, primero se piden una vez el número de serie y el resumen (nº de baterías).
+            byte[] cmd = startIndex < START.length ? START[startIndex] : CYCLE[cycleIndex];
             waitingKey = BmsProtocol.keyOf(cmd);
             send(cmd);
             h.postDelayed(responseTimeout, RESPONSE_TIMEOUT_MS);
@@ -459,8 +464,8 @@ public class BmsClient {
         h.removeCallbacks(responseTimeout);
         h.removeCallbacks(pollNext);
         waitingKey = -1;
-        if (!serialRequested) {
-            serialRequested = true;
+        if (startIndex < START.length) {
+            startIndex++;
             h.postDelayed(pollNext, 150);
             return;
         }
@@ -497,6 +502,10 @@ public class BmsClient {
                     break;
                 case BmsProtocol.KEY_PACK_STATUS:
                     listener.onStatusBytes(f.data);
+                    break;
+                case BmsProtocol.KEY_SUMMARY:
+                    int packs = BmsProtocol.parsePackCount(f.data);
+                    if (packs > 0) listener.onPackCount(packs);
                     break;
                 default:
                     if ((f.key >> 8) == 0x00) {

@@ -364,4 +364,12 @@ public class MainActivity extends Activity implements BmsClient.Listener {
         } catch (JSONException ignored) {
         }
     }
+
+    @Override
+    public void onPackCount(int packs) {
+        try {
+            send(new JSONObject().put("type", "packs").put("packs", packs));
+        } catch (JSONException ignored) {
+        }
+    }
 }

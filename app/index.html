@@ -56,6 +56,9 @@
   .status { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: var(--radius);
     padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .packsWarn { background: color-mix(in srgb, var(--warn) 14%, var(--card)); border: 1px solid var(--warn);
+    border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; font-size: 14px; line-height: 1.45; }
+  .packsWarn b { color: var(--warn); }
   .status[data-state="connected"] .dot { background: var(--good); }
   .status[data-state="scanning"] .dot, .status[data-state="connecting"] .dot,
   .status[data-state="reconnecting"] .dot { background: var(--warn); animation: pulse 1s infinite alternate; }
@@ -325,6 +328,8 @@
   <span class="dot"></span><span id="msg">Pulsa Conectar. Recuerda cerrar BMS tools antes.</span>
   <span class="time" id="time"></span>
 </div>
+
+<div class="packsWarn" id="packsWarn" role="alert" hidden></div>
 
 <div class="picker" id="picker" hidden>
   <h2>Dispositivos encontrados</h2>
@@ -704,7 +709,21 @@
     document.body.classList.toggle("stale", s === "reconnecting" || (s === "connecting" && !!last.basic));
   }
 
+  // Varias baterías en paralelo: la app solo lee la batería 1, así que capacidad, corriente y
+  // autonomía serían solo de esa. Se avisa claramente en vez de mostrar datos engañosos sin más.
+  function renderPacks(n) {
+    var el = $("packsWarn");
+    if (n > 1) {
+      el.innerHTML = "⚠️ <b>Hay " + n + " baterías en paralelo.</b> Must Manager solo muestra por ahora la " +
+        "<b>batería 1</b>: la capacidad, la corriente y la autonomía son solo de esa batería, no del total.";
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+
   function resetDashboard() {
+    renderPacks(0);
     last = { basic: null, cells: null };
     samples = [];
     serials = {};
@@ -1110,6 +1129,7 @@
         else { serials[m.key] = m.text; $("serial").textContent = Object.keys(serials).sort().map(function (k) { return serials[k]; }).join(" · "); }
         break;
       case "status": renderStatus(m.hex); break;
+      case "packs": renderPacks(m.packs); break;
     }
   };
 

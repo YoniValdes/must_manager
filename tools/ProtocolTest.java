@@ -74,6 +74,12 @@ public class ProtocolTest {
         boolean rejected = false;
         try { BmsProtocol.parseBasic(d48); } catch (IllegalArgumentException e) { rejected = true; }
         check(rejected, "75 V rechazado (fuera de rango)");
+
+        // Resumen 0A 00: byte 0 = nº de baterías en paralelo (0 = valor raro, no se avisa).
+        check(BmsProtocol.parsePackCount(new byte[]{1, 0, 0}) == 1, "resumen: 1 batería");
+        check(BmsProtocol.parsePackCount(new byte[]{2, 0, 0}) == 2, "resumen: 2 baterías en paralelo");
+        check(BmsProtocol.parsePackCount(new byte[]{0}) == 0 && BmsProtocol.parsePackCount(new byte[0]) == 0,
+            "resumen raro o vacío: sin aviso");
         check(b.cellMinIndex == 1 && b.cellMinMv == 3473, "celda mín. 1 → 3473 mV");
 
         System.out.println("Celdas (0A 02), captura 14:12:09");

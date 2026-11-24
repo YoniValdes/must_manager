@@ -132,6 +132,7 @@
       if (f.key === 0x0a01) emit(parseBasic(f.data));
       else if (f.key === 0x0a02) emit(parseCells(f.data));
       else if (f.key === 0x0a03) emit({ type: "status", hex: toHex(f.data) });
+      else if (f.key === 0x0a00) { var n = f.data.length ? f.data[0] : 0; if (n >= 1 && n <= 32) emit({ type: "packs", packs: n }); }
       else if ((f.key >> 8) === 0x00) { var t = parseText(f.data); if (t) emit({ type: "device", key: f.key, text: t }); }
       lastGood = Date.now();
       if (!everGotData && (f.key >> 8) === 0x0a) { everGotData = true; state("connected", "Conectado (Web Bluetooth)"); }
@@ -183,6 +184,10 @@
     // El número de serie se pide una vez (igual que hace BMS tools al conectar).
     await send(CMD_DEVICE_INFO);
     await waitFor(keyOf(CMD_DEVICE_INFO), RESPONSE_TIMEOUT_MS);
+    await sleep(150);
+    // Resumen del sistema, una vez: dice cuántas baterías hay en paralelo (la app solo muestra la 1).
+    await send(CMD_SUMMARY);
+    await waitFor(keyOf(CMD_SUMMARY), RESPONSE_TIMEOUT_MS);
     await sleep(150);
 
     while (running && id === sessionId && device.gatt.connected) {

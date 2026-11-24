@@ -51,6 +51,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
     private BmsProtocol.Basic lastBasic;
     private BmsProtocol.Cells lastCells;
     private byte[] lastStatus;
+    private int lastPacks;
     private final SparseArray<String> texts = new SparseArray<String>();
     private long lastSavedAt;
     private long lastNotifAt;
@@ -119,6 +120,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
             if (lastBasic != null) ui.onBasic(lastBasic);
             if (lastCells != null) ui.onCells(lastCells);
             if (lastStatus != null) ui.onStatusBytes(lastStatus);
+            if (lastPacks > 0) ui.onPackCount(lastPacks);
         }
     }
 
@@ -239,6 +241,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
             lastBasic = null;
             lastCells = null;
             lastStatus = null;
+            lastPacks = 0;
             texts.clear();
         }
         // Problema de conexión mientras se monitoriza (no cuando el usuario desconecta): alerta si dura más de 5 min.
@@ -300,5 +303,11 @@ public class MonitorService extends Service implements BmsClient.Listener {
         }
         lastStatus = data;
         if (ui != null) ui.onStatusBytes(data);
+    }
+
+    @Override
+    public void onPackCount(int packs) {
+        lastPacks = packs;
+        if (ui != null) ui.onPackCount(packs);
     }
 }

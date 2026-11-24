@@ -182,6 +182,16 @@ public final class BmsProtocol {
         return b;
     }
 
+    /**
+     * 0A 00: resumen del sistema. Solo se usa el byte 0, nº de baterías (packs) en paralelo.
+     * Devuelve 0 si el valor no es razonable (en ese caso no se avisa de nada).
+     */
+    public static int parsePackCount(byte[] d) {
+        if (d.length < 1) return 0;
+        int n = d[0] & 0xFF;
+        return n >= 1 && n <= 32 ? n : 0;
+    }
+
     /** 0A 02: celdas y temperaturas del pack. */
     public static final class Cells {
         public double packVoltageV;
