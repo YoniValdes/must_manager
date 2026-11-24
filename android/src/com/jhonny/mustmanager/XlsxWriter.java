@@ -14,16 +14,38 @@ import java.util.zip.ZipOutputStream;
 /**
  * Escritor mínimo de Excel (.xlsx) sin librerías: un .xlsx es un zip con unos XML dentro.
  * Las hojas se escriben fila a fila (streaming), así que sirve para cientos de miles de filas.
- * Tipos de celda: número, texto y fecha (fecha real de Excel con formato aaaa-mm-dd hh:mm:ss).
+ * Tipos de celda: número, texto y fecha real de Excel (fecha y hora, fecha sola u hora sola).
  */
 final class XlsxWriter {
 
-    /** Marca para que una celda se escriba como fecha (ms epoch). */
+    /**
+     * Marca para que una celda se escriba como fecha/hora real de Excel (ms epoch). Según el tipo se guarda
+     * el día (dd/mm/aaaa), la hora (hh:mm:ss o hh:mm) o ambos; Excel puede ordenar y filtrar por ellas.
+     */
     static final class Date {
+        static final int DATETIME = 1, DAY = 3, TIME = 4, HOUR_MIN = 5; // = índice del estilo en styles.xml
         final long ms;
+        final int kind;
 
         Date(long ms) {
+            this(ms, DATETIME);
+        }
+
+        Date(long ms, int kind) {
             this.ms = ms;
+            this.kind = kind;
+        }
+
+        static Date day(long ms) {
+            return new Date(ms, DAY);
+        }
+
+        static Date time(long ms) {
+            return new Date(ms, TIME);
+        }
+
+        static Date hourMin(long ms) {
+            return new Date(ms, HOUR_MIN);
         }
     }
 
@@ -69,9 +91,12 @@ final class XlsxWriter {
             if (c == null) {
                 w.write("<c/>");
             } else if (c instanceof Date) {
-                long ms = ((Date) c).ms;
-                double serial = (ms + tz.getOffset(ms)) / 86400000.0 + 25569.0; // días desde 1900 (Excel)
-                w.write("<c s=\"1\"><v>" + serial + "</v></c>");
+                Date d = (Date) c;
+                double serial = (d.ms + tz.getOffset(d.ms)) / 86400000.0 + 25569.0; // días desde 1900 (Excel)
+                // Fecha sola: el día entero. Hora sola: solo la fracción del día.
+                if (d.kind == Date.DAY) serial = Math.floor(serial);
+                else if (d.kind == Date.TIME || d.kind == Date.HOUR_MIN) serial = serial - Math.floor(serial);
+                w.write("<c s=\"" + d.kind + "\"><v>" + serial + "</v></c>");
             } else if (c instanceof Number) {
                 double d = ((Number) c).doubleValue();
                 if (Double.isNaN(d) || Double.isInfinite(d)) w.write("<c/>");
@@ -117,14 +142,20 @@ final class XlsxWriter {
         put("xl/_rels/workbook.xml.rels", rels.append("</Relationships>").toString());
         put("xl/styles.xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
             + "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
-            + "<numFmts count=\"1\"><numFmt numFmtId=\"164\" formatCode=\"yyyy-mm-dd hh:mm:ss\"/></numFmts>"
+            + "<numFmts count=\"4\"><numFmt numFmtId=\"164\" formatCode=\"yyyy-mm-dd hh:mm:ss\"/>"
+            + "<numFmt numFmtId=\"165\" formatCode=\"dd/mm/yyyy\"/><numFmt numFmtId=\"166\" formatCode=\"hh:mm:ss\"/>"
+            + "<numFmt numFmtId=\"167\" formatCode=\"hh:mm\"/></numFmts>"
             + "<fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts>"
             + "<fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills>"
             + "<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>"
             + "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
-            + "<cellXfs count=\"3\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>"
+            // Estilos: 0 normal · 1 fecha y hora · 2 cabecera en negrita · 3 fecha · 4 hora · 5 hora sin segundos
+            + "<cellXfs count=\"6\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>"
             + "<xf numFmtId=\"164\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/>"
-            + "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/></cellXfs>"
+            + "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>"
+            + "<xf numFmtId=\"165\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/>"
+            + "<xf numFmtId=\"166\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/>"
+            + "<xf numFmtId=\"167\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/></cellXfs>"
             + "</styleSheet>");
         w.flush();
         zip.finish();

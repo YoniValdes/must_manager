@@ -54,7 +54,7 @@ final class Exporter {
     }
 
     private static int[] readingsWidths(int cells) {
-        int[] head = {20, 8, 11, 12, 12, 13, 12, 13, 13, 13, 15};
+        int[] head = {11, 9, 8, 11, 12, 12, 13, 12, 13, 13, 13, 15};
         int[] tail = {13, 13, 15, 15, 13};
         int[] w = new int[head.length + cells + tail.length];
         System.arraycopy(head, 0, w, 0, head.length);
@@ -64,7 +64,7 @@ final class Exporter {
     }
 
     private static String[] buildReadingsHeader(int nCells) {
-        String[] base = {"Fecha y hora", "SOC (%)", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Estado",
+        String[] base = {"Fecha", "Hora", "SOC (%)", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Estado",
             "Restante (Ah)", "Capacidad (Ah)", "Celda mín (mV)", "Celda máx (mV)", "Diferencia (mV)"};
         String[] tail = {"Temp. máx (°C)", "Temp. MOS (°C)", "Temp. ambiente (°C)", "Duración (s)", "Energía (Wh)"};
         String[] h = new String[base.length + nCells + tail.length];
@@ -144,9 +144,9 @@ final class Exporter {
         }
 
         // Todo en positivo: consumo = lo que sale de la batería; carga = lo que entra (sol o red).
-        x.startSheet("Por hora", new String[]{"Hora", "Descargado (kWh)", "Cargado (kWh)", "Consumo medio (W)",
+        x.startSheet("Por hora", new String[]{"Fecha", "Hora", "Descargado (kWh)", "Cargado (kWh)", "Consumo medio (W)",
                 "Pico de consumo (W)", "Carga media (W)", "SOC mín (%)", "SOC máx (%)", "Diferencia celdas máx (mV)", "Lecturas"},
-            new int[]{20, 17, 15, 18, 19, 16, 12, 12, 24, 10});
+            new int[]{11, 7, 17, 15, 18, 19, 16, 12, 12, 24, 10});
         c = db.rawQuery("SELECT (ts / 3600000) * 3600000 AS h,"
             + " SUM(CASE WHEN w < 0 THEN -w * dt ELSE 0 END),"
             + " SUM(CASE WHEN w > 0 THEN w * dt ELSE 0 END),"
@@ -158,7 +158,7 @@ final class Exporter {
             while (c.moveToNext()) {
                 double disWs = c.getDouble(1), chgWs = c.getDouble(2), disS = c.getDouble(3), chgS = c.getDouble(4);
                 double peak = c.getDouble(5);
-                x.row(new XlsxWriter.Date(c.getLong(0)), round(disWs / 3600000.0, 3), round(chgWs / 3600000.0, 3),
+                x.row(XlsxWriter.Date.day(c.getLong(0)), XlsxWriter.Date.hourMin(c.getLong(0)), round(disWs / 3600000.0, 3), round(chgWs / 3600000.0, 3),
                     disS > 0 ? round(disWs / disS, 0) : null, peak < 0 ? round(-peak, 0) : null,
                     chgS > 0 ? round(chgWs / chgS, 0) : null, c.getInt(6), c.getInt(7),
                     c.isNull(8) ? null : (Object) c.getInt(8), c.getInt(9));
@@ -167,15 +167,15 @@ final class Exporter {
             c.close();
         }
 
-        x.startSheet("Estado del BMS", new String[]{"Fecha y hora", "Carga permitida", "Descarga permitida",
+        x.startSheet("Estado del BMS", new String[]{"Fecha", "Hora", "Carga permitida", "Descarga permitida",
                 "Batería llena", "SOC (%)", "Corriente (A)", "Trama (hex)"},
-            new int[]{20, 16, 18, 14, 9, 13, 44});
+            new int[]{11, 9, 16, 18, 14, 9, 13, 44});
         c = db.rawQuery("SELECT ts, hex, soc, a FROM status_log WHERE ts >= ? AND ts < ? ORDER BY ts", args);
         try {
             while (c.moveToNext()) {
                 String hex = c.getString(1);
                 int b2 = byteAt(hex, 2), b3 = byteAt(hex, 3);
-                x.row(new XlsxWriter.Date(c.getLong(0)), yesNo(b3 & 0x02), yesNo(b3 & 0x04), yesNo(b2 & 0x80),
+                x.row(XlsxWriter.Date.day(c.getLong(0)), XlsxWriter.Date.time(c.getLong(0)), yesNo(b3 & 0x02), yesNo(b3 & 0x04), yesNo(b2 & 0x80),
                     c.isNull(2) ? null : (Object) c.getInt(2), c.isNull(3) ? null : (Object) c.getDouble(3), hex);
             }
         } finally {
@@ -218,7 +218,9 @@ final class Exporter {
         double a = c.getDouble(3), w = c.getDouble(4), dt = c.getDouble(14);
         Object[] row = new Object[columns];
         int i = 0;
-        row[i++] = excelDate ? new XlsxWriter.Date(ts) : LOCAL.get().format(new Date(ts));
+        // Fecha y hora en columnas separadas (más cómodo para filtrar por día en Excel).
+        row[i++] = excelDate ? XlsxWriter.Date.day(ts) : DAY.get().format(new Date(ts));
+        row[i++] = excelDate ? XlsxWriter.Date.time(ts) : TIME.get().format(new Date(ts));
         row[i++] = c.getInt(1);
         row[i++] = round(c.getDouble(2), 2);
         row[i++] = round(a, 2);
@@ -239,10 +241,17 @@ final class Exporter {
         return row;
     }
 
-    private static final ThreadLocal<SimpleDateFormat> LOCAL = new ThreadLocal<SimpleDateFormat>() {
+    // CSV: fecha en formato ISO (aaaa-mm-dd), que cualquier programa entiende sin confundir día y mes.
+    private static final ThreadLocal<SimpleDateFormat> DAY = new ThreadLocal<SimpleDateFormat>() {
         @Override
         protected SimpleDateFormat initialValue() {
-            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+            return new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+        }
+    };
+    private static final ThreadLocal<SimpleDateFormat> TIME = new ThreadLocal<SimpleDateFormat>() {
+        @Override
+        protected SimpleDateFormat initialValue() {
+            return new SimpleDateFormat("HH:mm:ss", Locale.US);
         }
     };
 

@@ -15,15 +15,19 @@ public class XlsxTest {
         Class<?> dc = Class.forName("com.jhonny.mustmanager.XlsxWriter$Date");
         java.lang.reflect.Constructor<?> dk = dc.getDeclaredConstructor(long.class);
         dk.setAccessible(true);
+        // Fecha sola (3), hora sola (4) y hora sin segundos (5): los tipos de XlsxWriter.Date.
+        java.lang.reflect.Constructor<?> dk2 = dc.getDeclaredConstructor(long.class, int.class);
+        dk2.setAccessible(true);
 
-        start.invoke(x, "Lecturas", new String[]{"Fecha y hora", "SOC (%)", "Potencia (W)", "Estado", "Texto <&>"}, new int[]{20, 8, 12, 12, 12});
+        start.invoke(x, "Lecturas", new String[]{"Fecha", "Hora", "SOC (%)", "Potencia (W)", "Estado", "Texto <&>"}, new int[]{11, 9, 8, 12, 12, 12});
         long t0 = 1795435200000L; // 23-nov-2026 07:00 UTC
         for (int i = 0; i < 5; i++) {
-            row.invoke(x, (Object) new Object[]{dk.newInstance(t0 + i * 10000L), 99 - i, -558.4 + i, "Descargando", "a<b & \"c\""});
+            long t = t0 + i * 10000L;
+            row.invoke(x, (Object) new Object[]{dk2.newInstance(t, 3), dk2.newInstance(t, 4), 99 - i, -558.4 + i, "Descargando", "a<b & \"c\""});
         }
-        row.invoke(x, (Object) new Object[]{dk.newInstance(t0), null, Double.NaN, "vacías", ""});
-        start.invoke(x, "Por hora", new String[]{"Hora", "kWh"}, null);
-        row.invoke(x, (Object) new Object[]{dk.newInstance(t0), 0.523});
+        row.invoke(x, (Object) new Object[]{dk2.newInstance(t0, 3), dk2.newInstance(t0, 4), null, Double.NaN, "vacías", ""});
+        start.invoke(x, "Por hora", new String[]{"Fecha", "Hora", "kWh", "Fecha y hora"}, null);
+        row.invoke(x, (Object) new Object[]{dk2.newInstance(t0, 3), dk2.newInstance(t0, 5), 0.523, dk.newInstance(t0)});
         fin.invoke(x);
         out.close();
         System.out.println("generado " + args[0]);

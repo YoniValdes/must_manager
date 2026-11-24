@@ -23,6 +23,7 @@ window.CHANGELOG = [
       ["imp", "Alto contraste sin bordes: fondo más oscuro y tarjetas más claras."],
       ["imp", "El color del voltaje se calcula por celda, así vale para cualquier batería."],
       ["imp", "Al exportar a Excel salen tantas columnas de celdas como tenga tu batería."],
+      ["imp", "En el Excel y el CSV, la fecha y la hora van en columnas separadas: más fácil filtrar por día."],
       ["imp", "Nuevo diseño de las ventanas (Acerca de, Personalizar, novedades…): centradas, con borde de neón y animación al abrir y cerrar."]
     ]
   }
