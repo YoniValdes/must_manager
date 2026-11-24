@@ -1660,7 +1660,9 @@
     togglePanel("aboutCard", "aboutBtn", false);
     showModal($("newsCard"));
     document.body.classList.add("modalOpen");
-    $("nOk").focus();
+    // Foco en Aceptar (para el teclado) pero sin bajar hasta él: la lista se lee desde arriba.
+    try { $("nOk").focus({ preventScroll: true }); } catch (e) { $("nOk").focus(); }
+    $("newsCard").querySelector(".card").scrollTop = 0;
     return true;
   }
   function closeNews() {
