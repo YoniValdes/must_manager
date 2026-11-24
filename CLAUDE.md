@@ -166,5 +166,5 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
   3. Más pruebas del medidor de aparatos con otros aparatos (Jhonny las hará); después, la función "si apagas X, llegas a las HH:MM".
   4. Mejorar visualmente el **indicador del SOC** (Jhonny lo mencionó junto a los KPIs; aún no dijo qué quiere).
   5. Paso 7 (inversor): fotos de la parte de atrás (conector USB y puerto Wi-Fi).
-  6. Opcionales: convertir en ventana emergente la campana y exportar (solo APK); que el botón Atrás de Android cierre las ventanas; GitHub Actions para compilar en la nube; borrar las ramas ya fusionadas `medidor-aparatos` y `kpis-visual` (`git branch -d …` y `git push origin --delete …`, desde Termux: el entorno de Claude no puede borrar ramas remotas).
+  6. Opcionales: convertir en ventana emergente la campana y exportar (solo APK); que el botón Atrás de Android cierre las ventanas; GitHub Actions para compilar en la nube. (En GitHub solo queda `main`: las ramas fusionadas ya están borradas. Desde el PC sí se pueden borrar ramas remotas con `git push origin --delete …`.)
 - Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Paso 6 hecho: la v0.20 ya está compartida con amigos que tienen el mismo sistema.
