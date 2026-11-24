@@ -63,6 +63,8 @@
   .status[data-state="error"] { outline: 1px solid var(--bad); }
   .status[data-state="error"] .dot { background: var(--bad); }
   @keyframes pulse { to { opacity: .3; } }
+  .status .msgEdit { flex: none; padding: 2px 6px; font-size: 14px; line-height: 1; opacity: .75; }
+  .status .msgEdit:hover { opacity: 1; }
   .status .time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   /* Reconectando: los datos son de antes del corte → apagados para que no parezcan actuales */
@@ -504,6 +506,7 @@
 
 <div class="status" id="status" data-state="disconnected">
   <span class="dot"></span><span id="msg">Pulsa Conectar. Recuerda cerrar BMS tools antes.</span>
+  <button class="icon msgEdit" id="msgEdit" hidden aria-label="Cambiar el nombre del BMS" title="Cambiar el nombre del BMS">✏️</button>
   <span class="time" id="time"></span>
 </div>
 
@@ -633,6 +636,11 @@
   var $ = function (id) { return document.getElementById(id); };
   var hasBridge = typeof window.Android !== "undefined";
   var state = "disconnected";
+  var lastMsg = "";      // último mensaje de estado tal cual llegó (sin alias), para rehacerlo al renombrar
+  // BMS al que se está conectado: {address, name}. En la APK, el que se tocó en la lista (recordado para
+  // las reconexiones automáticas); en Chrome lo dice webble.js al conectar (mensaje "bms").
+  var currentBms = null;
+  try { currentBms = JSON.parse(localStorage.getItem("mm-last-bms") || "null"); } catch (e) { currentBms = null; }
   var last = { basic: null, cells: null };
 
   // ---------------------------------------------------------------- estimación de autonomía
@@ -977,7 +985,10 @@
   function setState(s, message) {
     state = s;
     $("status").dataset.state = s;
-    if (message) $("msg").textContent = withAliases(message);
+    if (message) lastMsg = message;
+    if (lastMsg) $("msg").textContent = withAliases(lastMsg);
+    // ✏️ junto a "Conectado a …": el nombre también se puede cambiar con la app ya conectada.
+    $("msgEdit").hidden = !(currentBms && currentBms.address && isBusy(s) && s !== "scanning");
     $("btn").textContent = s === "scanning" ? "Cancelar" : isBusy(s) ? "Desconectar" : "Conectar";
     $("btn").className = isBusy(s) ? "secondary" : "";
     // En la web la lista la pone Chrome; la nuestra es solo para la APK.
@@ -1091,11 +1102,18 @@
     }
     return msg;
   }
+  function setCurrentBms(d) {
+    currentBms = { address: d.address, name: d.name || "" };
+    try { localStorage.setItem("mm-last-bms", JSON.stringify(currentBms)); } catch (e) { /* sin almacenamiento */ }
+    setState(state);
+  }
   var renaming = null;
   function openRename(addr) {
-    var d = found[addr] || { address: addr, name: (bmsNames[addr] || {}).name };
+    var d = found[addr] || (currentBms && currentBms.address === addr ? currentBms : null) ||
+      { address: addr, name: (bmsNames[addr] || {}).name };
     renaming = d;
-    $("renameSub").textContent = (d.name || "Sin nombre") + " · " + addr;
+    // En Chrome la "dirección" es un id interno largo, no la MAC: solo se enseña el nombre original.
+    $("renameSub").textContent = (d.name || "Sin nombre") + (/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(addr) ? " · " + addr : "");
     $("rName").value = (bmsNames[addr] || {}).alias || "";
     showModal($("renameCard"));
     document.body.classList.add("modalOpen");
@@ -1114,7 +1132,9 @@
     try { localStorage.setItem("mm-bms-names", JSON.stringify(bmsNames)); } catch (e) { /* sin almacenamiento */ }
     closeRename();
     renderDevices();
+    setState(state); // "Conectado a PC-BDC4" pasa a "Conectado a Casa" al momento
   }
+  $("msgEdit").addEventListener("click", function () { if (currentBms) openRename(currentBms.address); });
   $("rSave").addEventListener("click", saveRename);
   $("rCancel").addEventListener("click", closeRename);
   $("rClose").addEventListener("click", closeRename);
@@ -1145,7 +1165,7 @@
     var ed = e.target.closest(".devEdit");
     if (ed) { openRename(ed.dataset.addr); return; }
     var b = e.target.closest(".dev");
-    if (b && hasBridge) window.Android.connectTo(b.dataset.addr);
+    if (b && hasBridge) { setCurrentBms(found[b.dataset.addr] || { address: b.dataset.addr }); window.Android.connectTo(b.dataset.addr); }
   });
 
   function renderBasic(b) {
@@ -1540,6 +1560,7 @@
     switch (m.type) {
       case "state": setState(m.state, m.message); break;
       case "found": found[m.address] = m; renderDevices(); break;
+      case "bms": setCurrentBms(m); break;
       case "basic": renderBasic(m); break;
       case "cells": renderCells(m); break;
       case "device":
@@ -1954,6 +1975,7 @@
 
   // Datos de ejemplo de la lectura de referencia del 23-nov-2026, para ver la pantalla en el PC.
   function demo() {
+    window.bms({ type: "bms", address: "7C:3E:82:1B:BD:C4", name: "PC-BDC4" });
     window.bms({ type: "state", state: "connected", message: "Demostración con la lectura de referencia del 23-nov-2026" });
     window.bms({ type: "device", key: 1, text: "P8S200A-41080-1.03 · P8S200A-41080-1.03-002 · 21887V130" });
     window.bms({ type: "device", key: 4, text: "410801351500888Z" });

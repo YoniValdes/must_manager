@@ -178,7 +178,9 @@
     buf = [];
     rx.addEventListener("characteristicvaluechanged", onNotify);
     await rx.startNotifications();
-    state("connected", "Conectado. Leyendo datos…");
+    // Para el nombre propio: Chrome no da la MAC, pero device.id es fijo para este BMS en esta web.
+    emit({ type: "bms", address: device.id, name: device.name || "" });
+    state("connected", "Conectado a " + (device.name || "el BMS") + ". Leyendo datos…");
     lastGood = Date.now();
     await sleep(800); // al activar las notificaciones el BMS manda solo su información (versión)
     // El número de serie se pide una vez (igual que hace BMS tools al conectar).
