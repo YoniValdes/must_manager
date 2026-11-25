@@ -627,6 +627,7 @@
     <dl style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <dt>BMS</dt><dd id="device" class="mono">--</dd>
       <dt>Nº de serie</dt><dd id="serial" class="mono">--</dd>
+      <dt class="dbgRow" hidden>Diagnóstico</dt><dd class="dbgRow mono" id="debugInfo" hidden style="white-space:pre-line;text-align:right">Conecta para ver qué llega del BMS</dd>
       <dt>Estado (bruto)</dt><dd id="statushex" class="mono">--</dd>
     </dl>
   </div>
@@ -636,7 +637,7 @@
   El BMS admite una sola conexión: pulsa <b>Desconectar</b> antes de abrir BMS tools.</p>
 
 <script src="vendor/echarts.min.js"></script>
-<script src="webble.js?v=2"></script>
+<script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
 <script src="changelog.js?v=2"></script>
 <script>
@@ -1579,6 +1580,7 @@
         break;
       case "status": renderStatus(m.hex); break;
       case "packs": renderPacks(m.packs); break;
+      case "debug": $("debugInfo").textContent = m.text; break;
     }
   };
 
@@ -1596,6 +1598,8 @@
 
   // Tres motores: puente Java (APK), Web Bluetooth (Chrome) o demostración (navegador sin Bluetooth).
   var webBle = !hasBridge && window.WebBle && window.WebBle.available;
+  // ?debug: muestra en "Dispositivo" las tramas que llegan al conectar (solo en la web)
+  if (/[?&]debug\b/.test(location.search)) document.querySelectorAll(".dbgRow").forEach(function (e) { e.hidden = false; });
   if (hasBridge) {
     $("ver").textContent = "v" + window.Android.version();
   } else if (webBle) {

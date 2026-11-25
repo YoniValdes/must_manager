@@ -142,9 +142,20 @@
     if (waiter && waiter.key === f.key) { var w = waiter; waiter = null; w.resolve(true); }
   }
 
+  // Diagnóstico (solo lectura, no envía nada): qué llega en los primeros 15 s tras conectar.
+  // La página lo muestra con ?debug. Sirve para ver si llega la trama de versión (00 01) que el BMS manda solo.
+  var dbg = null;
+  function dbgLog(txt) {
+    if (!dbg || Date.now() - dbg.t0 > 15000) return;
+    dbg.lines.push(((Date.now() - dbg.t0) / 1000).toFixed(1) + " s " + txt);
+    emit({ type: "debug", text: dbg.lines.join("\n") + "\nrechazados: " + rejected });
+  }
   function onNotify(ev) {
-    var v = ev.target.value;
-    feed(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)).forEach(handleFrame);
+    var v = ev.target.value, bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    var frames = feed(bytes);
+    dbgLog("trozo " + bytes.length + " B" + (frames.length ? " → " + frames.map(function (f) {
+      return ("000" + f.key.toString(16)).slice(-4).toUpperCase() + " (" + f.data.length + " B)"; }).join(", ") : ""));
+    frames.forEach(handleFrame);
   }
 
   function waitFor(key, ms) {
@@ -176,6 +187,7 @@
       return;
     }
     buf = [];
+    dbg = { t0: Date.now(), lines: [] };
     rx.addEventListener("characteristicvaluechanged", onNotify);
     await rx.startNotifications();
     // Para el nombre propio: Chrome no da la MAC, pero device.id es fijo para este BMS en esta web.
