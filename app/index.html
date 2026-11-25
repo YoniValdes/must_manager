@@ -117,10 +117,13 @@
   .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .eta .chip { font-size: 13px; padding: 6px 11px; border-radius: 999px; background: rgba(5,8,18,.55); color: #e6edf3;
     border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); line-height: 1.3; }
+  /* Todas las etiquetas con borde de neón: las neutras ("Calculando la media…", "incluye aporte solar") con el acento */
+  .eta .chip { border-color: var(--acc); box-shadow: 0 0 10px -2px var(--acc); }
   .eta .chip.verdict { border-color: var(--neon); box-shadow: 0 0 10px -2px var(--neon); }
   .eta .chip b { font-variant-numeric: tabular-nums; }
   /* Apagón: "Sin corriente desde las 14:32 · 5 h 12 min" (ámbar) o "Volvió la corriente…" (azul) */
   .eta .chip.grid { border-color: var(--warn); box-shadow: 0 0 10px -2px var(--warn); }
+  .eta .chip.grid.unknown { border-color: var(--bad); box-shadow: 0 0 10px -2px var(--bad); }
   .eta .chip.grid.back { border-color: var(--charge, #38bdf8); box-shadow: 0 0 10px -2px var(--charge, #38bdf8); }
   /* Cielo: estrellas que titilan y sol que respira (muy suave, para no gastar batería) */
   #trees .td { fill: var(--tree-d); } #trees .tl { fill: var(--tree-l); }
@@ -680,7 +683,8 @@
   // Lo detectará Java (MonitorService/AlertManager, funciona con la pantalla apagada) y mandará
   // {type:"grid", state:"out"|"back"|"on", since, lastSeen, back} (ms). lastSeen = última vez que se vio
   // corriente, solo si el apagón cayó con la app cerrada (entonces la hora exacta no se sabe).
-  // Prueba sin apagón real: ?apagon=14:32 · ?apagon=13:10-14:32 (con hueco) · ?apagon=14:32&volvio=19:44
+  // state "unknown": hay apagón pero no hay ninguna lectura con corriente de antes → aviso en rojo.
+  // Prueba sin apagón real: ?apagon=14:32 · ?apagon=13:10-14:32 (con hueco) · ?apagon=14:32&volvio=19:44 · ?apagon=no
   var grid = null;
   function gridWhen(t) {
     var d = new Date(t), today = new Date(), y = new Date(); y.setDate(y.getDate() - 1);
@@ -693,7 +697,11 @@
     var el = $("etaGrid");
     if (!grid || grid.state === "on") { el.hidden = true; return; }
     el.classList.toggle("back", grid.state === "back");
-    if (grid.state === "back") {
+    el.classList.toggle("unknown", grid.state === "unknown");
+    if (grid.state === "unknown") {
+      // Hay apagón, pero no hay ninguna lectura con corriente de antes (app cerrada o instalada durante el corte).
+      el.innerHTML = "⚠️ Sin corriente, pero <b>no se puede saber desde cuándo</b>: la app estaba cerrada cuando se fue";
+    } else if (grid.state === "back") {
       el.innerHTML = "🔌 Volvió la corriente " + (/^las/.test(gridWhen(grid.back)) ? "a " : "") + gridWhen(grid.back) + " · tras <b>" +
         fmtDurationText((grid.back - grid.since) / 3600000) + "</b> sin ella";
     } else if (grid.lastSeen) {
@@ -710,6 +718,7 @@
   }
   setInterval(renderGrid, 30000); // el contador de horas avanza solo
   (function () {
+    if (/[?&]apagon=no\b/.test(location.search)) { grid = { state: "unknown" }; setTimeout(renderGrid, 0); return; }
     var m = /[?&]apagon=(\d{1,2}:\d{2})(?:-(\d{1,2}:\d{2}))?/.exec(location.search);
     if (!m) return;
     function at(hm) { // HH:MM de hoy, o de ayer si aún no ha llegado esa hora
