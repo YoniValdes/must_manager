@@ -51,7 +51,9 @@ La usará Jhonny en su casa y la compartirá con amigos que tienen el mismo sist
 - Todas las pruebas se hacen en la tablet de Jhonny: **Samsung Galaxy Tab S9 FE** (One UI, Android 16). No usa el teléfono para este proyecto. Dar siempre las rutas de menú de Samsung.
 
 ## Repositorio, entorno y compilación
-- GitHub (privado): https://github.com/YoniValdes/must_manager — rama `main`. En el PC: `D:\Git_Projects\must_manager` (Git Credential Manager con la cuenta YoniValdes; sin `gh`).
+- GitHub (privado; se va a hacer **público** para aprender el flujo open source con un amigo: fork → Pull Request): https://github.com/YoniValdes/must_manager — rama `main`. En el PC: `D:\Git_Projects\must_manager` (Git Credential Manager con la cuenta YoniValdes; sin `gh`).
+- **Privacidad antes de publicar (25-nov-2026):** revisado todo el historial: la llave, su contraseña, los logs de Bluetooth y los números de serie nunca se subieron. Jhonny decidió dejar su correo (ya sale en Acerca de) y la MAC del BMS (solo sirve junto a la batería). El nombre del amigo del 48 V se **borró de todo el historial** (`git filter-branch` con `--index-filter` solo sobre `CLAUDE.md` y `--msg-filter`, nombre → "el amigo") y se subió con push forzado (excepción acordada: antes de publicar y sin más clones que los de Jhonny). Copia previa completa: `D:Git_Projectsmust_manager_respaldo_2026-11-25.bundle` (se restaura con `git clone <bundle>`). **No escribir en el repo nombres de terceros**: "un amigo", "el amigo del 48 V".
+- **Tablet tras la reescritura (hacer una vez en Termux):** `cd ~/proyectos/must_manager && git fetch origin && git checkout main && git reset --hard origin/main` (un `git pull` normal fallaría porque los commits viejos ya no existen). Si tenía la rama `apagon`: `git branch -D apagon` y `git checkout apagon` para recrearla desde GitHub.
 - Tablet: Termux (`~/proyectos/`, `gh` autenticado). Ritual: `git pull` al empezar, commit y push al terminar.
 - Arquitectura: interfaz en `app/` (HTML + JS) y Java solo para Bluetooth/almacenamiento, igual que el proyecto `analitica` (`D:\Git_Projects\analitica`). **Sin Gradle ni Kotlin** para no depender de descargas grandes; Java 8 (`--release 8`, sin lambdas).
 - SDK portable en `D:\Android` (`jdk17`, `sdk` con build-tools 35.0.0, platform android-34 y platform-tools/adb; zips en `descargas\`).
@@ -213,5 +215,5 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
   12. **Bits de estado del BMS** "por confirmar": capturas de BMS tools → "Status data" cargando con la red, balanceando o con algún aviso, y compararlas con `status_log` (ver `docs/protocolo_bms.md`).
   13. **Elemento animado en el cielo:** redibujar el zunzún con más detalle ("parecía un mosquito") o la estrella fugaz.
   14. **Amanecer y atardecer automáticos** (fórmula NOAA, sin internet) según provincia o municipio y fecha, en vez de 07:00 / 18:00 fijos.
-  - Ramas en GitHub: `main`, `apagon` (experimento en curso) y `ccr-065b6165-1b3ppe` (rama de la sesión en la nube del 25-nov; se puede borrar desde el PC con `git push origin --delete ccr-065b6165-1b3ppe`).
+  - Ramas en GitHub: `main` y `apagon` (experimento en curso). La rama de la sesión en la nube del 25-nov se borró.
 - Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Paso 6 hecho: la v0.20 ya está compartida con amigos que tienen el mismo sistema.
