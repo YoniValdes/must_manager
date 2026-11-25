@@ -643,6 +643,7 @@
     <dl style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <dt>BMS</dt><dd id="device" class="mono">--</dd>
       <dt>Nº de serie</dt><dd id="serial" class="mono">--</dd>
+      <dt class="dbgRow" hidden>Diagnóstico</dt><dd class="dbgRow mono" id="debugInfo" hidden style="white-space:pre-line;text-align:right">Conecta para ver qué llega del BMS</dd>
       <dt>Estado (bruto)</dt><dd id="statushex" class="mono">--</dd>
     </dl>
   </div>
@@ -652,7 +653,7 @@
   El BMS admite una sola conexión: pulsa <b>Desconectar</b> antes de abrir BMS tools.</p>
 
 <script src="vendor/echarts.min.js"></script>
-<script src="webble.js?v=2"></script>
+<script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
 <script src="changelog.js?v=2"></script>
 <script>
@@ -746,6 +747,14 @@
     el.hidden = false;
   }
   setInterval(renderGrid, 30000); // el contador de horas avanza solo
+  // En la APK, Java (GridWatch) guarda las horas del apagón; la página las pide con cada lectura (como mucho cada 10 s).
+  var gridAskedAt = 0;
+  function pollGrid() {
+    if (!hasBridge || !window.Android || !Android.getGrid || Date.now() - gridAskedAt < 10000) return;
+    gridAskedAt = Date.now();
+    try { grid = JSON.parse(Android.getGrid()); } catch (e) { return; }
+    renderGrid();
+  }
   (function () {
     if (/[?&]apagon=no\b/.test(location.search)) { grid = { state: "unknown" }; setTimeout(renderGrid, 0); return; }
     var m = /[?&]apagon=(\d{1,2}:\d{2})(?:-(\d{1,2}:\d{2}))?/.exec(location.search);
@@ -1090,7 +1099,11 @@
     // En la web la lista la pone Chrome; la nuestra es solo para la APK.
     $("picker").hidden = !(hasBridge && (s === "scanning" || s === "select"));
     // Sin conexión no se muestra ningún dato: nada de lecturas viejas que parezcan actuales.
-    if (s === "disconnected" || s === "error") resetDashboard();
+    if (s === "disconnected" || s === "error") {
+      resetDashboard();
+      // El apagón tampoco: sin lecturas no se sabe si sigue sin corriente.
+      if (hasBridge) { grid = null; gridAskedAt = 0; renderGrid(); }
+    }
     document.body.classList.toggle("stale", s === "reconnecting" || (s === "connecting" && !!last.basic));
   }
 
@@ -1657,7 +1670,7 @@
       case "state": setState(m.state, m.message); break;
       case "found": found[m.address] = m; renderDevices(); break;
       case "bms": setCurrentBms(m); break;
-      case "basic": renderBasic(m); break;
+      case "basic": renderBasic(m); pollGrid(); break;
       case "cells": renderCells(m); break;
       case "device":
         // 0x0001 = versión de software/hardware (llega sola al conectar); 0x0004/0x0005 = números de serie.
@@ -1667,6 +1680,7 @@
       case "status": renderStatus(m.hex); break;
       case "packs": renderPacks(m.packs); break;
       case "grid": grid = m; renderGrid(); break;
+      case "debug": $("debugInfo").textContent = m.text; break;
     }
   };
 
@@ -1684,6 +1698,8 @@
 
   // Tres motores: puente Java (APK), Web Bluetooth (Chrome) o demostración (navegador sin Bluetooth).
   var webBle = !hasBridge && window.WebBle && window.WebBle.available;
+  // ?debug: muestra en "Dispositivo" las tramas que llegan al conectar (solo en la web)
+  if (/[?&]debug\b/.test(location.search)) document.querySelectorAll(".dbgRow").forEach(function (e) { e.hidden = false; });
   if (hasBridge) {
     $("ver").textContent = "v" + window.Android.version();
   } else if (webBle) {
