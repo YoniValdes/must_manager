@@ -238,6 +238,20 @@
   .modal .panel { max-width: 540px; }
   .modal .panel .set { text-align: left; }
   .modal .panel .set label.row, .modal .panel .set .times, .modal .panel .set .inline { font-size: 14px; }
+  /* "Tu equipo": cada dato en su fila, nombre a la izquierda y casilla pegada a la derecha (2 columnas si cabe) */
+  .set .fieldsTitle { border-top: 1px solid var(--line); padding-top: 12px; font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  /* Los nombres en una columna (tan ancha como el más largo) y las casillas alineadas justo al lado */
+  .set .fields { display: grid; grid-template-columns: max-content max-content; gap: 8px 14px; align-items: center; }
+  .set .field { display: contents; font-size: 14px; }
+  .set .field > span:first-child { white-space: nowrap; font-size: 14px; }
+  .set .field > span:last-child { display: flex; align-items: center; gap: 6px; }
+  .set .field i { font-style: normal; color: var(--muted); width: 1.2em; }
+  .set .field input[type=time] { width: 104px; }
+  .set .fieldsHint { line-height: 1.45; margin-top: -2px; }
+  .panel .sTests { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .panel .btns .aboutOk { min-width: 120px; }
+  .panel .saved { min-height: 18px; margin-top: 8px; text-align: center; }
   /* Personalizar: fondo más claro y sin difuminar, para ver cómo cambia la app de detrás al elegir */
   .modal.themeModal { background: rgba(0, 0, 0, .3); backdrop-filter: none; }
   .modal .theme { max-width: 540px; }
@@ -502,15 +516,20 @@
       <span class="sub"><br>De noche, con la media de los últimos 30 min. Vuelve a avisar solo si empeora.</span></span></label>
     <label class="row"><input type="checkbox" id="sConn"><span>📡 Avisar si se pierde la conexión más de 5 min
       <span class="sub"><br>Para saber que no se está grabando.</span></span></label>
-    <div class="times">Amanecer <input type="time" id="sRise"> Atardecer <input type="time" id="sSet">
-      Corte del inversor <input type="number" id="sCut" min="0" max="50"> %</div>
-    <div class="times">Inversor <input type="number" id="sInv" min="0" max="20000" step="100" placeholder="auto"> W
-      Paneles <input type="number" id="sPanels" min="100" max="30000" step="10"> W
-      <span class="sub">Inversor vacío = automático según la batería (24 V → 3000 W, 48 V → 6000 W). Paneles: para saber, de día, si la carga viene de la red.</span></div>
-    <div class="actions"><button id="sSave">Guardar</button><button class="secondary" id="sTest">Probar una alerta</button><button class="secondary" id="sTestAlarm">Probar alarma</button>
-      <span class="saved" id="sSaved"></span></div>
+    <div class="fieldsTitle">Tu equipo</div>
+    <div class="fields">
+      <label class="field"><span>🌅 Amanecer</span><span><input type="time" id="sRise"><i></i></span></label>
+      <label class="field"><span>🌇 Atardecer</span><span><input type="time" id="sSet"><i></i></span></label>
+      <label class="field"><span>✂️ Corte del inversor</span><span><input type="number" id="sCut" min="0" max="50"><i>%</i></span></label>
+      <label class="field"><span>🔌 Inversor</span><span><input type="number" id="sInv" min="0" max="20000" step="100" placeholder="auto"><i>W</i></span></label>
+      <label class="field"><span>☀️ Paneles</span><span><input type="number" id="sPanels" min="100" max="30000" step="10"><i>W</i></span></label>
+    </div>
+    <div class="sub fieldsHint">Inversor vacío = automático según la batería (24 V → 3000 W, 48 V → 6000 W). Paneles: la potencia
+      total de tus paneles, para saber de día si la carga viene de la red.</div>
   </div>
-  <button class="secondary aboutOk" id="sOk">Cerrar</button>
+  <div class="btns sTests"><button class="secondary" id="sTest">🔔 Probar una alerta</button><button class="secondary" id="sTestAlarm">⏰ Probar alarma</button></div>
+  <div class="btns"><button id="sSave" class="aboutOk">Guardar</button><button class="secondary aboutOk" id="sOk">Cerrar</button></div>
+  <div class="saved" id="sSaved" aria-live="polite"></div>
 </div>
 </div>
 
