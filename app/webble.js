@@ -135,7 +135,7 @@
       else if (f.key === 0x0a00) { var n = f.data.length ? f.data[0] : 0; if (n >= 1 && n <= 32) emit({ type: "packs", packs: n }); }
       else if ((f.key >> 8) === 0x00) { var t = parseText(f.data); if (t) emit({ type: "device", key: f.key, text: t }); }
       lastGood = Date.now();
-      if (!everGotData && (f.key >> 8) === 0x0a) { everGotData = true; state("connected", "Conectado (Web Bluetooth)"); }
+      if (!everGotData && (f.key >> 8) === 0x0a) { everGotData = true; state("connected", "Conectado a " + (device.name || "el BMS") + " (Web Bluetooth)"); }
     } catch (e) {
       state("connected", "Aviso: respuesta del BMS con formato inesperado (" + e.message + ").");
     }
