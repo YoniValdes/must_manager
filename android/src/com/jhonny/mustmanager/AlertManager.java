@@ -31,8 +31,8 @@ final class AlertManager {
 
     // Detección de la red: cuánto tiene que durar la condición y con qué potencia (W, media de 1 min).
     private static final long GRID_CONFIRM_MS = MIN;
-    private static final double GRID_ON_NIGHT_W = 150;   // de noche cualquier carga real es la red
-    private static final double GRID_ON_DAY_MARGIN = 1.03; // de día, algo más de lo que pueden dar los paneles
+    static final double GRID_ON_NIGHT_W = 150;   // de noche cualquier carga real es la red
+    static final double GRID_ON_DAY_MARGIN = 1.03; // de día, algo más de lo que pueden dar los paneles
     private static final double GRID_OFF_W = -100;       // la batería vuelve a descargar → se fue la red
     private static final long CONN_LOST_MS = 5 * MIN;
 
@@ -60,6 +60,7 @@ final class AlertManager {
         this.nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         this.alarm = new AlarmPlayer(ctx);
         this.grid = new GridWatch(ctx);
+        grid.recoverFromHistory(System.currentTimeMillis()); // recién instalada: lo que diga la gráfica
         gridOn = grid.gridOn();
         gridSince = grid.onSince();
         gridSoc0 = grid.onSoc();

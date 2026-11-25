@@ -2,6 +2,7 @@ package com.jhonny.mustmanager;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -34,13 +35,20 @@ final class GridWatch {
     private static final double DISCHARGING_A = -0.5;
     private static final long SAVE_EVERY_MS = 30000L;
 
+    /** Hasta dónde se mira el historial si no se sabe nada (la red suele llegar cada ~20 h). */
+    private static final long HISTORY_MS = 36 * 3600000L;
+
     private final SharedPreferences p;
+    private final ReadingStore store;
+    private final Settings settings;
     private String state;
     private long since, lastSeen, back, onSince, lastGridSeen, lastReading, savedAt;
     private int lastSoc, onSoc;
 
     GridWatch(Context ctx) {
         p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        store = ReadingStore.get(ctx);
+        settings = Settings.load(ctx);
         state = p.getString("state", "");
         since = p.getLong("since", 0);
         lastSeen = p.getLong("lastSeen", 0);
@@ -109,11 +117,70 @@ final class GridWatch {
         save(now);
     }
 
-    /** La batería descarga y no hay nada sabido de antes (recién instalada): apagón de hora desconocida. */
+    /** La batería descarga y no hay nada sabido de antes: se busca en el historial y, si no está, hora desconocida. */
     void onDischarging(long now) {
         if (state.isEmpty()) {
-            setUnknown();
+            if (!fromHistory(now)) setUnknown();
             save(now);
+        }
+    }
+
+    /** Sin nada sabido o con hora desconocida (p. ej. recién instalada): intenta sacarlo del historial. */
+    void recoverFromHistory(long now) {
+        if ((state.isEmpty() || "unknown".equals(state)) && fromHistory(now)) save(now);
+    }
+
+    /**
+     * Busca en las lecturas guardadas (36 h) la última vez que la red cargó la batería, con el mismo criterio
+     * que la detección en vivo (de noche > 150 W; de día, más de lo que pueden dar los paneles), y la primera
+     * descarga después: ahí se fue la corriente. Así no hace falta esperar al siguiente apagón.
+     */
+    private boolean fromHistory(long now) {
+        if (store == null || settings == null) return false;
+        long evidence = 0;
+        Cursor c = null;
+        try {
+            c = store.flow(now - HISTORY_MS, true);
+            while (c.moveToNext()) {
+                long ts = c.getLong(0);
+                double w = c.getDouble(2);
+                if (w > (settings.isNight(ts) ? AlertManager.GRID_ON_NIGHT_W : settings.panelsW * AlertManager.GRID_ON_DAY_MARGIN)) {
+                    evidence = ts;
+                    break;
+                }
+            }
+            c.close();
+            if (evidence == 0) return false;
+            // Desde esa carga, hacia delante: la última lectura sin descargar (con red) y la primera descargando.
+            long lastGrid = evidence, firstDis = 0;
+            c = store.flow(evidence, false);
+            while (c.moveToNext()) {
+                long ts = c.getLong(0);
+                if (c.getDouble(1) < DISCHARGING_A) {
+                    firstDis = ts;
+                    break;
+                }
+                lastGrid = ts;
+            }
+            if (firstDis == 0) {
+                state = "on"; // desde entonces no ha descargado: sigue habiendo red
+                since = 0;
+                lastSeen = 0;
+                onSince = evidence;
+                lastGridSeen = lastGrid;
+                return true;
+            }
+            boolean gap = firstDis - lastGrid > GAP_MS;
+            state = "out";
+            since = gap ? firstDis : lastGrid;
+            lastSeen = gap ? lastGrid : 0;
+            back = 0;
+            lastGridSeen = lastGrid;
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        } finally {
+            if (c != null) c.close();
         }
     }
 

@@ -97,6 +97,12 @@ public final class ReadingStore extends SQLiteOpenHelper {
         getWritableDatabase().insertWithOnConflict("readings", null, v, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
+    /** Lecturas desde from {ts, a, w}, de la más nueva a la más vieja (desc) o al revés. Hay que cerrar el cursor. */
+    public Cursor flow(long from, boolean desc) {
+        return getReadableDatabase().rawQuery("SELECT ts, a, w FROM readings WHERE ts >= ? ORDER BY ts " + (desc ? "DESC" : "ASC"),
+            new String[]{Long.toString(from)});
+    }
+
     public int count(long from, long to) {
         Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM readings WHERE ts >= ? AND ts < ?",
             new String[]{Long.toString(from), Long.toString(to)});
