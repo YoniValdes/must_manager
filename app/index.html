@@ -117,6 +117,8 @@
   /* Apagón en grande, a la derecha: misma etiqueta y mismo número que la autonomía, alineados con ellos, en rojo */
   .eta .gridBig { position: absolute; top: 18px; right: 20px; text-align: right; --neon: #f87171; }
   .eta .gridBig .big small:last-child { margin-right: 0; }
+  .eta .gridBig .label { color: #fca5a5; }
+  .eta .gridBig .line b { color: #fecaca; }
   body:not(.neon) .eta .gridBig .big { color: var(--bad); }
   @media (max-width: 600px) { .eta .gridBig { position: static; text-align: left; margin-top: 12px; } }
   .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -563,7 +565,8 @@
     <div class="label" id="etaLabel">Autonomía</div>
     <div class="big" id="etaBig">--</div>
     <div class="line" id="etaLine">Esperando datos del BMS…</div>
-    <div class="gridBig" id="gridBig" hidden><div class="label" id="gridLabel"></div><div class="big" id="gridHours"></div></div>
+    <div class="gridBig" id="gridBig" hidden><div class="label">Sin corriente<span> · de la calle</span></div>
+      <div class="big" id="gridHours"></div><div class="line" id="gridLine"></div></div>
     <div class="chips"><span class="chip grid" id="etaGrid" hidden></span><span class="chip verdict" id="etaVerdict" hidden></span><span class="chip" id="etaNote" hidden></span>
       <span class="chip" id="etaSun" hidden>☀️ incluye aporte solar</span></div>
   </div>
@@ -703,13 +706,18 @@
     var el = $("etaGrid");
     $("gridBig").hidden = true;
     if (!grid || grid.state === "on") { el.hidden = true; return; }
-    if (grid.state === "out") {
-      // En grande a la derecha (el texto plano, sin negritas: va en la etiqueta pequeña)
-      var plain = function (t) { return gridWhen(t).replace(/<\/?b>/g, ""); };
+    if (grid.state === "out" || grid.state === "unknown") {
+      // En grande a la derecha, con la misma estructura que la autonomía: etiqueta, número y línea debajo.
       var sameDay = grid.lastSeen && new Date(grid.lastSeen).toDateString() === new Date(grid.since).toDateString();
-      $("gridLabel").innerHTML = "Sin corriente<span> · " + (grid.lastSeen ? "desde entre " + plain(grid.lastSeen) + " y " +
-        (sameDay ? "las " + fmtClock(new Date(grid.since)) : plain(grid.since)) : "desde " + plain(grid.since)) + "</span>";
-      $("gridHours").innerHTML = (grid.lastSeen ? "<small>≥</small>" : "") + fmtDuration((Date.now() - grid.since) / 3600000);
+      if (grid.state === "unknown") {
+        // Igual que la autonomía sin datos: "--" y una línea corta que dice por qué.
+        $("gridHours").textContent = "--";
+        $("gridLine").textContent = "Hora desconocida · la app estaba cerrada";
+      } else {
+        $("gridHours").innerHTML = (grid.lastSeen ? "<small>≥</small>" : "") + fmtDuration((Date.now() - grid.since) / 3600000);
+        $("gridLine").innerHTML = grid.lastSeen ? "Se fue entre " + gridWhen(grid.lastSeen) + " y " +
+          (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) : "Se fue " + gridWhen(grid.since);
+      }
       $("gridBig").hidden = false;
       el.hidden = true;
       return;
