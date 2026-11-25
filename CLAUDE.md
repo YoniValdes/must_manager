@@ -200,5 +200,11 @@ Versión en `android/AndroidManifest.xml` (`versionName` 0.21).
   7. Paso 7 (inversor): fotos de la parte de atrás (conector USB y puerto Wi-Fi).
   8. Que la app **recomiende el candado "Mantener abierta"** de Samsung (aviso la primera vez y nota en Acerca de).
   9. Opcionales: botón Atrás de Android para cerrar las ventanas; GitHub Actions para compilar en la nube.
+  Sin prisa (detalle en sus secciones):
+  10. **Versión del firmware del BMS** (fila "BMS" con "--"): captura HCI de BMS tools en los primeros segundos de la conexión (ver Plan → paso 3).
+  11. **Varias baterías en paralelo:** mostrar el total; hace falta una captura de BMS tools de alguien con 2 baterías.
+  12. **Bits de estado del BMS** "por confirmar": capturas de BMS tools → "Status data" cargando con la red, balanceando o con algún aviso, y compararlas con `status_log` (ver `docs/protocolo_bms.md`).
+  13. **Elemento animado en el cielo:** redibujar el zunzún con más detalle ("parecía un mosquito") o la estrella fugaz.
+  14. **Amanecer y atardecer automáticos** (fórmula NOAA, sin internet) según provincia o municipio y fecha, en vez de 07:00 / 18:00 fijos.
   - Ramas en GitHub: `main`, `apagon` (experimento en curso) y `ccr-065b6165-1b3ppe` (rama de la sesión en la nube del 25-nov; se puede borrar desde el PC con `git push origin --delete ccr-065b6165-1b3ppe`).
 - Pasos 3, 4 y 5 hechos (23-nov-2026): APK v0.20 con registro, gráficas, alertas, exportación y la parte visual. Paso 6 hecho: la v0.20 ya está compartida con amigos que tienen el mismo sistema.
