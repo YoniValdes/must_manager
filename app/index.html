@@ -114,6 +114,11 @@
   .eta .big small { font-size: 24px; font-weight: 700; margin: 0 8px 0 3px; color: inherit; opacity: .85; }
   .eta .line { font-size: 16px; color: #f1f5f9; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
   .eta .line b { color: #fff; }
+  /* Apagón en grande, a la derecha: misma etiqueta y mismo número que la autonomía, alineados con ellos, en rojo */
+  .eta .gridBig { position: absolute; top: 18px; right: 20px; text-align: right; --neon: #f87171; }
+  .eta .gridBig .big small:last-child { margin-right: 0; }
+  body:not(.neon) .eta .gridBig .big { color: var(--bad); }
+  @media (max-width: 600px) { .eta .gridBig { position: static; text-align: left; margin-top: 12px; } }
   .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .eta .chip { font-size: 13px; padding: 6px 11px; border-radius: 999px; background: rgba(5,8,18,.55); color: #e6edf3;
     border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); line-height: 1.3; }
@@ -558,6 +563,7 @@
     <div class="label" id="etaLabel">Autonomía</div>
     <div class="big" id="etaBig">--</div>
     <div class="line" id="etaLine">Esperando datos del BMS…</div>
+    <div class="gridBig" id="gridBig" hidden><div class="label" id="gridLabel"></div><div class="big" id="gridHours"></div></div>
     <div class="chips"><span class="chip grid" id="etaGrid" hidden></span><span class="chip verdict" id="etaVerdict" hidden></span><span class="chip" id="etaNote" hidden></span>
       <span class="chip" id="etaSun" hidden>☀️ incluye aporte solar</span></div>
   </div>
@@ -695,7 +701,19 @@
   }
   function renderGrid() {
     var el = $("etaGrid");
+    $("gridBig").hidden = true;
     if (!grid || grid.state === "on") { el.hidden = true; return; }
+    if (grid.state === "out") {
+      // En grande a la derecha (el texto plano, sin negritas: va en la etiqueta pequeña)
+      var plain = function (t) { return gridWhen(t).replace(/<\/?b>/g, ""); };
+      var sameDay = grid.lastSeen && new Date(grid.lastSeen).toDateString() === new Date(grid.since).toDateString();
+      $("gridLabel").innerHTML = "Sin corriente<span> · " + (grid.lastSeen ? "desde entre " + plain(grid.lastSeen) + " y " +
+        (sameDay ? "las " + fmtClock(new Date(grid.since)) : plain(grid.since)) : "desde " + plain(grid.since)) + "</span>";
+      $("gridHours").innerHTML = (grid.lastSeen ? "<small>≥</small>" : "") + fmtDuration((Date.now() - grid.since) / 3600000);
+      $("gridBig").hidden = false;
+      el.hidden = true;
+      return;
+    }
     el.classList.toggle("back", grid.state === "back");
     el.classList.toggle("unknown", grid.state === "unknown");
     if (grid.state === "unknown") {
