@@ -237,7 +237,8 @@
   .appItem .nm small { display: block; color: var(--muted); font-size: 11px; }
   .appItem b { font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .appItem b span { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 2px; }
-  .appItem .del { background: none; color: var(--muted); padding: 4px 6px; font-size: 14px; }
+  .appItem .del { background: none; color: var(--muted); padding: 4px 6px; font-size: 14px; white-space: nowrap; }
+  .appItem .del.ask { background: var(--bad); color: #fff; padding: 4px 10px; font-size: 13px; font-weight: 600; }
   .meter .step { font-size: 15px; line-height: 1.5; margin: 12px 0 6px; }
   .meter .live { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
   .meter .live span { font-size: 16px; color: var(--muted); font-weight: 600; margin-left: 4px; }
@@ -1699,15 +1700,28 @@
         "<span>W</span></b><button class='del' data-id='" + a.id + "' aria-label='Borrar " + esc(a.name) + "'>✕</button></div>";
     }).join("") + "</div>";
   }
+  // Borrar en dos toques: ✕ → "¿Borrar?" (rojo) → borrado. Sin confirm(): en la APK el WebView no muestra
+  // esas ventanas (no hay WebChromeClient) y confirm() devuelve false sin preguntar, así que nunca borraba.
+  var delTimer = null;
+  function resetDel() {
+    clearTimeout(delTimer);
+    var b = $("appList").querySelector(".del.ask");
+    if (b) { b.classList.remove("ask"); b.textContent = "✕"; }
+  }
   $("appList").addEventListener("click", function (e) {
     var btn = e.target.closest(".del");
-    if (!btn) return;
-    var a = appliances.filter(function (x) { return String(x.id) === btn.dataset.id; })[0];
-    if (a && confirm("¿Borrar «" + a.name + "» de la lista?")) {
-      appliances = appliances.filter(function (x) { return x !== a; });
-      saveAppliances();
-      renderAppliances();
+    if (!btn) { resetDel(); return; }
+    if (!btn.classList.contains("ask")) {
+      resetDel();
+      btn.classList.add("ask");
+      btn.textContent = "¿Borrar?";
+      delTimer = setTimeout(resetDel, 3000);
+      return;
     }
+    clearTimeout(delTimer);
+    appliances = appliances.filter(function (x) { return String(x.id) !== btn.dataset.id; });
+    saveAppliances();
+    renderAppliances();
   });
 
   function meterFresh() { return last.basic && meter && meter.lastAt && Date.now() - meter.lastAt < 15000; }
