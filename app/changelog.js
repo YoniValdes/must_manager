@@ -14,12 +14,12 @@ window.CHANGELOG = [
     items: [
       ["new", "Widget para la pantalla de inicio: SOC, consumo y autonomía sin abrir la app. Mantén pulsado un hueco de la pantalla de inicio → Widgets → Must Manager."],
       ["new", "Alarma de batería baja: al 20 % suena como un despertador suave, aunque esté en No molestar. Se activa en la campana."],
-      ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y guárdalo en una lista."],
+      ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y guárdalo en una lista, donde puedes cambiarle el nombre o borrarlo."],
       ["new", "Compatible con baterías de 48 V, como el Must HBP3300 TLV. La app reconoce sola tu batería (celdas, capacidad y kWh) y avisa si hay varias en paralelo."],
-      ["new", "Ponle nombre a tu BMS (Casa, Taller…) con el lápiz ✏️ de la lista, y ajusta en la campana la potencia del inversor y de tus paneles."],
+      ["new", "Ponle nombre a tu BMS (Casa, Taller…) con el lápiz ✏️ (en la lista o junto a «Conectado a…»), y ajusta en la campana la potencia del inversor y de tus paneles."],
       ["imp", "Autonomía más realista y estable: usa el consumo medio de los últimos 30 minutos."],
       ["imp", "Excel más cómodo: fecha y hora en columnas separadas y una columna por cada celda de tu batería."],
-      ["imp", "Retoques visuales: gráfica de fondo en los indicadores, ventanas nuevas, mejor alto contraste y medidores de «Esta noche» que ya no se cortan."]
+      ["imp", "Retoques visuales: gráfica de fondo en los indicadores, ventanas nuevas y más ordenadas, cielo renovado, mejor alto contraste y medidores de «Esta noche» que ya no se cortan."]
     ]
   }
 ];
