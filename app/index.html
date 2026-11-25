@@ -114,6 +114,13 @@
   .eta .big small { font-size: 24px; font-weight: 700; margin: 0 8px 0 3px; color: inherit; opacity: .85; }
   .eta .line { font-size: 16px; color: #f1f5f9; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
   .eta .line b { color: #fff; }
+  /* Apagón en grande, a la derecha: misma etiqueta y mismo número que la autonomía, alineados con ellos, en rojo */
+  .eta .gridBig { position: absolute; top: 18px; right: 20px; text-align: right; --neon: #f87171; }
+  .eta .gridBig .big small:last-child { margin-right: 0; }
+  .eta .gridBig .label { color: #fca5a5; }
+  .eta .gridBig .line b { color: #fecaca; }
+  body:not(.neon) .eta .gridBig .big { color: var(--bad); }
+  @media (max-width: 600px) { .eta .gridBig { position: static; text-align: left; margin-top: 12px; } }
   .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .eta .chip { font-size: 13px; padding: 6px 11px; border-radius: 999px; background: rgba(5,8,18,.55); color: #e6edf3;
     border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); line-height: 1.3; }
@@ -121,6 +128,10 @@
   .eta .chip { border-color: var(--acc); box-shadow: 0 0 10px -2px var(--acc); }
   .eta .chip.verdict { border-color: var(--neon); box-shadow: 0 0 10px -2px var(--neon); }
   .eta .chip b { font-variant-numeric: tabular-nums; }
+  /* Apagón: "Sin corriente desde las 14:32 · 5 h 12 min" (ámbar) o "Volvió la corriente…" (azul) */
+  .eta .chip.grid { border-color: var(--warn); box-shadow: 0 0 10px -2px var(--warn); }
+  .eta .chip.grid.unknown { border-color: var(--bad); box-shadow: 0 0 10px -2px var(--bad); }
+  .eta .chip.grid.back { border-color: var(--charge, #38bdf8); box-shadow: 0 0 10px -2px var(--charge, #38bdf8); }
   /* Cielo: estrellas que titilan y sol que respira (muy suave, para no gastar batería) */
   #trees .td { fill: var(--tree-d); } #trees .tl { fill: var(--tree-l); }
   #treesFar .td { fill: var(--treefar-d); } #treesFar .tl { fill: var(--treefar-l); }
@@ -554,7 +565,9 @@
     <div class="label" id="etaLabel">Autonomía</div>
     <div class="big" id="etaBig">--</div>
     <div class="line" id="etaLine">Esperando datos del BMS…</div>
-    <div class="chips"><span class="chip verdict" id="etaVerdict" hidden></span><span class="chip" id="etaNote" hidden></span>
+    <div class="gridBig" id="gridBig" hidden><div class="label">Sin corriente<span> · de la calle</span></div>
+      <div class="big" id="gridHours"></div><div class="line" id="gridLine"></div></div>
+    <div class="chips"><span class="chip grid" id="etaGrid" hidden></span><span class="chip verdict" id="etaVerdict" hidden></span><span class="chip" id="etaNote" hidden></span>
       <span class="chip" id="etaSun" hidden>☀️ incluye aporte solar</span></div>
   </div>
 </div>
@@ -673,6 +686,77 @@
     return hh > 0 ? hh + " h " + mm + " min" : mm + " min";
   }
   function fmtClock(date) { return date.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }); }
+
+  // ---------------------------------------------------------------- apagón (corriente de la calle)
+  // Con el inversor en UTI, con red la batería nunca se descarga: el paso a descargar marca el apagón.
+  // Lo detectará Java (MonitorService/AlertManager, funciona con la pantalla apagada) y mandará
+  // {type:"grid", state:"out"|"back"|"on", since, lastSeen, back} (ms). lastSeen = última vez que se vio
+  // corriente, solo si el apagón cayó con la app cerrada (entonces la hora exacta no se sabe).
+  // state "unknown": hay apagón pero no hay ninguna lectura con corriente de antes → aviso en rojo.
+  // Prueba sin apagón real: ?apagon=14:32 · ?apagon=13:10-14:32 (con hueco) · ?apagon=14:32&volvio=19:44 · ?apagon=no
+  var grid = null;
+  function gridWhen(t) {
+    var d = new Date(t), today = new Date(), y = new Date(); y.setDate(y.getDate() - 1);
+    // "las 14:32" · "ayer a las 14:32" · "el 3 nov a las 14:32" (la hora va en negrita)
+    var day = d.toDateString() === today.toDateString() ? "" : d.toDateString() === y.toDateString() ? "ayer a " :
+      "el " + d.toLocaleDateString("es", { day: "numeric", month: "short" }) + " a ";
+    return day + "las <b>" + fmtClock(d) + "</b>";
+  }
+  function renderGrid() {
+    var el = $("etaGrid");
+    $("gridBig").hidden = true;
+    if (!grid || grid.state === "on") { el.hidden = true; return; }
+    if (grid.state === "out" || grid.state === "unknown") {
+      // En grande a la derecha, con la misma estructura que la autonomía: etiqueta, número y línea debajo.
+      var sameDay = grid.lastSeen && new Date(grid.lastSeen).toDateString() === new Date(grid.since).toDateString();
+      if (grid.state === "unknown") {
+        // Igual que la autonomía sin datos: "--" y una línea corta que dice por qué.
+        $("gridHours").textContent = "--";
+        $("gridLine").textContent = "Hora desconocida · la app estaba cerrada";
+      } else {
+        $("gridHours").innerHTML = (grid.lastSeen ? "<small>≥</small>" : "") + fmtDuration((Date.now() - grid.since) / 3600000);
+        $("gridLine").innerHTML = grid.lastSeen ? "Se fue entre " + gridWhen(grid.lastSeen) + " y " +
+          (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) : "Se fue " + gridWhen(grid.since);
+      }
+      $("gridBig").hidden = false;
+      el.hidden = true;
+      return;
+    }
+    el.classList.toggle("back", grid.state === "back");
+    el.classList.toggle("unknown", grid.state === "unknown");
+    if (grid.state === "unknown") {
+      // Hay apagón, pero no hay ninguna lectura con corriente de antes (app cerrada o instalada durante el corte).
+      el.innerHTML = "⚠️ Sin corriente, pero <b>no se puede saber desde cuándo</b>: la app estaba cerrada cuando se fue";
+    } else if (grid.state === "back") {
+      el.innerHTML = "🔌 Volvió la corriente " + (/^las/.test(gridWhen(grid.back)) ? "a " : "") + gridWhen(grid.back) + " · tras <b>" +
+        fmtDurationText((grid.back - grid.since) / 3600000) + "</b> sin ella";
+    } else if (grid.lastSeen) {
+      // Si las dos horas son del mismo día, el día se dice una sola vez: "entre ayer a las 13:10 y las 14:32"
+      var sameDay = new Date(grid.lastSeen).toDateString() === new Date(grid.since).toDateString();
+      el.innerHTML = "⚡ Sin corriente desde entre " + gridWhen(grid.lastSeen) + " y " +
+        (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) +
+        " · al menos <b>" + fmtDurationText((Date.now() - grid.since) / 3600000) + "</b>";
+    } else {
+      el.innerHTML = "⚡ Sin corriente desde " + gridWhen(grid.since) + " · llevas <b>" +
+        fmtDurationText((Date.now() - grid.since) / 3600000) + "</b>";
+    }
+    el.hidden = false;
+  }
+  setInterval(renderGrid, 30000); // el contador de horas avanza solo
+  (function () {
+    if (/[?&]apagon=no\b/.test(location.search)) { grid = { state: "unknown" }; setTimeout(renderGrid, 0); return; }
+    var m = /[?&]apagon=(\d{1,2}:\d{2})(?:-(\d{1,2}:\d{2}))?/.exec(location.search);
+    if (!m) return;
+    function at(hm) { // HH:MM de hoy, o de ayer si aún no ha llegado esa hora
+      var p = hm.split(":"), d = new Date(); d.setHours(+p[0], +p[1], 0, 0);
+      if (d > Date.now()) d.setDate(d.getDate() - 1);
+      return d.getTime();
+    }
+    var v = /[?&]volvio=(\d{1,2}:\d{2})/.exec(location.search);
+    grid = m[2] ? { state: "out", lastSeen: at(m[1]), since: at(m[2]) } : { state: "out", since: at(m[1]) };
+    if (v) { grid.state = "back"; grid.back = at(v[1]); delete grid.lastSeen; }
+    setTimeout(renderGrid, 0);
+  })();
   function nextSunrise(now) {
     var p = SUNRISE.split(":"), d = new Date(now);
     d.setHours(+p[0], +p[1], 0, 0);
@@ -1579,6 +1663,7 @@
         break;
       case "status": renderStatus(m.hex); break;
       case "packs": renderPacks(m.packs); break;
+      case "grid": grid = m; renderGrid(); break;
     }
   };
 
