@@ -115,7 +115,10 @@
   .eta .line { font-size: 16px; color: #f1f5f9; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
   .eta .line b { color: #fff; }
   /* Apagón en grande, a la derecha: misma etiqueta y mismo número que la autonomía, alineados con ellos, en rojo */
-  .eta .gridBig { position: absolute; top: 18px; right: 20px; text-align: right; --neon: #f87171; }
+  .eta .gridBig { position: absolute; top: 18px; right: 20px; text-align: right; --neon: #ef4444; }
+  /* Con neón, el centro del número no va blanco (con el brillo rojo se veía rosado/amarillento) sino rojo claro,
+     y el resplandor en rojo intenso: así se lee rojo y conserva el neón. */
+  body.neon .eta .gridBig .big { color: #ff6b6b; text-shadow: 0 0 1px #ff9b9b, 0 0 8px #ff2a2a, 0 0 20px #e11d1d, 0 0 40px #b91c1c; }
   .eta .gridBig .big small:last-child { margin-right: 0; }
   .eta .gridBig .label { color: #fca5a5; }
   .eta .gridBig .line b { color: #fecaca; }
