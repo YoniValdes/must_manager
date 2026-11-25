@@ -238,6 +238,10 @@
   .appItem b { font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .appItem b span { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 2px; }
   .appItem .del { background: none; color: var(--muted); padding: 4px 6px; font-size: 14px; white-space: nowrap; }
+  .appItem .ren { background: none; padding: 4px 6px; font-size: 14px; opacity: .75; }
+  .appItem .nm input { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--acc);
+    background: var(--card); color: var(--text); font: inherit; font-size: 14px; }
+  .appItem .save { padding: 6px 12px; font-size: 13px; white-space: nowrap; }
   .appItem .del.ask { background: var(--bad); color: #fff; padding: 4px 10px; font-size: 13px; font-weight: 600; }
   .meter .step { font-size: 15px; line-height: 1.5; margin: 12px 0 6px; }
   .meter .live { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
@@ -1697,7 +1701,8 @@
       var d = new Date(a.t);
       return "<div class='appItem'><div class='nm'>" + esc(a.name) + "<small>medido el " +
         d.toLocaleDateString("es", { day: "numeric", month: "short" }) + "</small></div><b>" + fmt(a.w, 0) +
-        "<span>W</span></b><button class='del' data-id='" + a.id + "' aria-label='Borrar " + esc(a.name) + "'>✕</button></div>";
+        "<span>W</span></b><button class='icon ren' data-id='" + a.id + "' aria-label='Cambiar el nombre de " + esc(a.name) +
+        "' title='Cambiar el nombre'>✏️</button><button class='del' data-id='" + a.id + "' aria-label='Borrar " + esc(a.name) + "'>✕</button></div>";
     }).join("") + "</div>";
   }
   // Borrar en dos toques: ✕ → "¿Borrar?" (rojo) → borrado. Sin confirm(): en la APK el WebView no muestra
@@ -1708,7 +1713,35 @@
     var b = $("appList").querySelector(".del.ask");
     if (b) { b.classList.remove("ask"); b.textContent = "✕"; }
   }
+  // Cambiar el nombre: ✏️ → la fila pasa a un campo de texto con «Guardar» (Enter guarda, Escape cancela).
+  function findApp(id) { return appliances.filter(function (x) { return String(x.id) === String(id); })[0]; }
+  function startRename(id) {
+    var a = findApp(id), row = $("appList").querySelector(".ren[data-id='" + id + "']");
+    if (!a || !row) return;
+    row = row.closest(".appItem");
+    row.innerHTML = "<div class='nm'><input type='text' maxlength='30' value='" + esc(a.name) + "' aria-label='Nombre del aparato'></div>" +
+      "<button class='save' data-id='" + a.id + "'>Guardar</button>";
+    var inp = row.querySelector("input");
+    inp.focus(); inp.select();
+  }
+  function saveRenameApp(id) {
+    var a = findApp(id), inp = $("appList").querySelector(".save[data-id='" + id + "']");
+    inp = inp && inp.closest(".appItem").querySelector("input");
+    var name = inp ? inp.value.trim().slice(0, 30) : "";
+    if (a && name) { a.name = name; saveAppliances(); }
+    renderAppliances();
+  }
+  $("appList").addEventListener("keydown", function (e) {
+    if (e.target.tagName !== "INPUT") return;
+    var id = e.target.closest(".appItem").querySelector(".save").dataset.id;
+    if (e.key === "Enter") saveRenameApp(id);
+    else if (e.key === "Escape") { e.stopPropagation(); renderAppliances(); } // solo cancela, no cierra la ventana
+  });
   $("appList").addEventListener("click", function (e) {
+    var sv = e.target.closest(".save");
+    if (sv) { saveRenameApp(sv.dataset.id); return; }
+    var rn = e.target.closest(".ren");
+    if (rn) { resetDel(); startRename(rn.dataset.id); return; }
     var btn = e.target.closest(".del");
     if (!btn) { resetDel(); return; }
     if (!btn.classList.contains("ask")) {
