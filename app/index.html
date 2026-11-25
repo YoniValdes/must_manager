@@ -121,9 +121,9 @@
   body.neon .eta .gridBig .big { color: #ff6b6b; text-shadow: 0 0 1px #ff9b9b, 0 0 8px #ff2a2a, 0 0 20px #e11d1d, 0 0 40px #b91c1c; }
   .eta .gridBig .big small:last-child { margin-right: 0; }
   .eta .gridBig .label { color: #fca5a5; }
-  .eta .gridBig .line b { color: #fecaca; }
+  .eta .gridBig .line b { color: #fff; font-weight: 700; }
   body:not(.neon) .eta .gridBig .big { color: var(--bad); }
-  @media (max-width: 600px) { .eta .gridBig { position: static; text-align: left; margin-top: 12px; } }
+  @media (max-width: 600px) { .eta .gridBig { position: static; margin-top: 12px; } }
   .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .eta .chip { font-size: 13px; padding: 6px 11px; border-radius: 999px; background: rgba(5,8,18,.55); color: #e6edf3;
     border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); line-height: 1.3; }
@@ -719,7 +719,7 @@
       } else {
         $("gridHours").innerHTML = (grid.lastSeen ? "<small>≥</small>" : "") + fmtDuration((Date.now() - grid.since) / 3600000);
         $("gridLine").innerHTML = grid.lastSeen ? "Se fue entre " + gridWhen(grid.lastSeen) + " y " +
-          (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) : "Se fue " + gridWhen(grid.since);
+          (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) : "Se fue " + (/^las/.test(gridWhen(grid.since)) ? "a " : "") + gridWhen(grid.since);
       }
       $("gridBig").hidden = false;
       el.hidden = true;
