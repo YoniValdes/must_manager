@@ -1721,15 +1721,22 @@
   // Prueba de diseño en el navegador (sin la APK no funcionan, pero se ven): ?panel=alertas / ?panel=exportar
   if (/[?&]panel=alertas/.test(location.search)) setTimeout(function () { togglePanel("settingsCard", "bell", true); }, 0);
   if (/[?&]panel=exportar/.test(location.search)) setTimeout(function () { togglePanel("exportCard", "exportBtn", true); }, 0);
-  document.addEventListener("keydown", function (e) {
-    if (e.key !== "Escape") return;
-    if (!$("renameCard").hidden) closeRename();
-    else if (!$("keepCard").hidden) closeKeep();
-    else if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
-    else if (!$("appsCard").hidden) closeApps(); else if (!$("themeCard").hidden) closeTheme();
-    else if (!$("settingsCard").hidden) closeSettings(); else if (!$("exportCard").hidden) closeExport();
-    else if (!$("aboutCard").hidden) closeAbout();
-  });
+  // Cierra la ventana emergente de más arriba (la que se ve). Devuelve true si había alguna abierta.
+  // La usan la tecla Escape y el botón Atrás de Android (MainActivity.onBackPressed → window.mmBack).
+  function open_(id) { var el = $(id); return !el.hidden && !el.classList.contains("closing"); }
+  function closeTopModal() {
+    if (open_("renameCard")) closeRename();
+    else if (open_("keepCard")) closeKeep();
+    else if (open_("newsCard")) closeNews(); else if (open_("meterCard")) closeMeter();
+    else if (open_("appsCard")) closeApps(); else if (open_("themeCard")) closeTheme();
+    else if (open_("settingsCard")) closeSettings(); else if (open_("exportCard")) closeExport();
+    else if (open_("aboutCard")) closeAbout();
+    else if (document.querySelector(".modal.closing")) return true; // dos toques rápidos: no salir de la app
+    else return false;
+    return true;
+  }
+  window.mmBack = closeTopModal;
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeTopModal(); });
 
   // ---------------------------------------------------------------- medidor de aparatos
   // El BMS solo ve el consumo total de la casa. Para saber lo que gasta un aparato se mide el consumo

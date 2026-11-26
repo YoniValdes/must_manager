@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -293,6 +294,22 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             onState("error", "Sin el permiso de \"Dispositivos cercanos\" no puedo conectar con el BMS. "
                 + "Actívalo en Ajustes → Aplicaciones → Must Manager → Permisos.");
         }
+    }
+
+    /**
+     * Botón Atrás: si hay una ventana emergente abierta en la página, la cierra (como su ✕);
+     * si no, hace lo de siempre (salir de la app; el servicio sigue grabando).
+     */
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (!pageReady) { super.onBackPressed(); return; }
+        web.evaluateJavascript("window.mmBack ? window.mmBack() : false", new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String handled) {
+                if (!"true".equals(handled)) MainActivity.super.onBackPressed();
+            }
+        });
     }
 
     // ------------------------------------------------------------------ eventos → página
