@@ -236,6 +236,7 @@
   .set .field > span:last-child { display: flex; align-items: center; gap: 6px; }
   .set .field i { font-style: normal; color: var(--muted); width: 1.2em; }
   .set .field input[type=time] { width: 104px; }
+  .set .field input:disabled { opacity: .6; }
   .set .fieldsHint { line-height: 1.45; margin-top: -2px; }
   .panel .sTests { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
   .panel .btns .aboutOk { min-width: 120px; }
@@ -518,13 +519,33 @@
       <span class="sub"><br>Para saber que no se está grabando.</span></span></label>
     <div class="fieldsTitle">Tu equipo</div>
     <div class="fields">
+      <label class="field"><span>📍 Lugar</span><span><select id="sPlace">
+        <option value="pinar">Pinar del Río</option>
+        <option value="artemisa">Artemisa</option>
+        <option value="habana">La Habana</option>
+        <option value="mayabeque">Mayabeque</option>
+        <option value="matanzas">Matanzas</option>
+        <option value="cienfuegos">Cienfuegos</option>
+        <option value="villaclara">Villa Clara</option>
+        <option value="sancti">Sancti Spíritus</option>
+        <option value="ciego">Ciego de Ávila</option>
+        <option value="camaguey">Camagüey</option>
+        <option value="tunas">Las Tunas</option>
+        <option value="holguin">Holguín</option>
+        <option value="granma">Granma</option>
+        <option value="santiago">Santiago de Cuba</option>
+        <option value="guantanamo">Guantánamo</option>
+        <option value="isla">Isla de la Juventud</option>
+        <option value="">Manual (pongo yo las horas)</option>
+      </select><i></i></span></label>
       <label class="field"><span>🌅 Amanecer</span><span><input type="time" id="sRise"><i></i></span></label>
       <label class="field"><span>🌇 Atardecer</span><span><input type="time" id="sSet"><i></i></span></label>
       <label class="field"><span>✂️ Corte del inversor</span><span><input type="number" id="sCut" min="0" max="50"><i>%</i></span></label>
       <label class="field"><span>🔌 Inversor</span><span><input type="number" id="sInv" min="0" max="20000" step="100" placeholder="auto"><i>W</i></span></label>
       <label class="field"><span>☀️ Paneles</span><span><input type="number" id="sPanels" min="100" max="30000" step="10"><i>W</i></span></label>
     </div>
-    <div class="sub fieldsHint">Inversor vacío = automático según la batería (24 V → 3000 W, 48 V → 6000 W). Paneles: la potencia
+    <div class="sub fieldsHint">Con tu provincia, el amanecer y el atardecer se calculan solos cada día, sin internet
+      (con la hora de la tablet: tiene que estar bien puesta). Inversor vacío = automático según la batería (24 V → 3000 W, 48 V → 6000 W). Paneles: la potencia
       total de tus paneles, para saber de día si la carga viene de la red.</div>
   </div>
   <div class="btns sTests"><button class="secondary" id="sTest">🔔 Probar una alerta</button><button class="secondary" id="sTestAlarm">⏰ Probar alarma</button></div>
@@ -692,7 +713,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
-<script src="changelog.js?v=3"></script>
+<script src="changelog.js?v=4"></script>
 <script>
 (function () {
   "use strict";
@@ -1677,19 +1698,36 @@
     $("sAlarm").checked = s.socAlarm !== false;
     $("sGrid").checked = s.gridAlerts; $("sSunrise").checked = s.sunriseAlerts; $("sConn").checked = s.connAlerts;
     $("sRise").value = s.sunrise; $("sSet").value = s.sunset; $("sCut").value = s.cutoffSoc;
+    $("sPlace").value = s.place || "";
+    placeChanged();
     $("sInv").value = s.inverterW > 0 ? s.inverterW : ""; $("sPanels").value = s.panelsW || 1020;
     inverterSetting = s.inverterW > 0 ? s.inverterW : 0;
     updateBattery();
   }
+  // Con una provincia elegida, las horas las calcula Android cada día: las casillas solo las enseñan.
+  function placeChanged() {
+    var auto = !!$("sPlace").value;
+    $("sRise").disabled = auto; $("sSet").disabled = auto;
+  }
   if (hasSettings) {
     try { applySettings(JSON.parse(window.Android.getSettings())); } catch (e) { /* valores por defecto */ }
+    $("sPlace").addEventListener("change", placeChanged);
+    // Las horas del sol cambian cada día: se vuelven a pedir cada 30 min (sin tocar la ventana si está abierta).
+    setInterval(function () {
+      var s;
+      try { s = JSON.parse(window.Android.getSettings()); } catch (e) { return; }
+      if (s.sunrise === SUNRISE && s.sunset === SUNSET) return;
+      if ($("settingsCard").hidden) applySettings(s); else { SUNRISE = s.sunrise; SUNSET = s.sunset; }
+      updateSky();
+      loadHistory();
+    }, 30 * 60000);
     updateSky();
     refreshBell();
     $("sSave").addEventListener("click", function () {
       var s = {
         socAlerts: $("sSoc").checked, socAlarm: $("sAlarm").checked, socWarn: +$("sSocWarn").value, socCritical: +$("sSocCrit").value,
         gridAlerts: $("sGrid").checked, sunriseAlerts: $("sSunrise").checked, connAlerts: $("sConn").checked,
-        sunrise: $("sRise").value, sunset: $("sSet").value, cutoffSoc: +$("sCut").value,
+        sunrise: $("sRise").value, sunset: $("sSet").value, place: $("sPlace").value, cutoffSoc: +$("sCut").value,
         inverterW: +$("sInv").value || 0, panelsW: +$("sPanels").value || 1020
       };
       // Android valida y corrige lo que esté fuera de rango; mostramos cómo quedó de verdad.

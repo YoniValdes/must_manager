@@ -17,7 +17,7 @@ window.CHANGELOG = [
       ["new", "Medidor de aparatos (botón del enchufe 🔌): mide cuánto gasta cada aparato de tu casa y mira hasta qué hora llegarías si lo apagas."],
       ["new", "Compatible con baterías de 48 V, como el Must HBP3300 TLV. La app reconoce sola tu batería (celdas, capacidad y kWh) y avisa si hay varias en paralelo."],
       ["new", "Ponle nombre a tu BMS (Casa, Taller…) con el lápiz ✏️ (en la lista o junto a «Conectado a…»), y ajusta en la campana la potencia del inversor y de tus paneles."],
-      ["imp", "Autonomía más realista y estable: usa el consumo medio de los últimos 30 minutos."],
+      ["imp", "Autonomía más realista y estable: usa el consumo medio de los últimos 30 minutos, y el amanecer y el atardecer de cada día según tu provincia (elígela en la campana)."],
       ["imp", "Excel más cómodo: fecha y hora en columnas separadas y una columna por cada celda de tu batería."],
       ["imp", "Retoques visuales: gráfica de fondo en los indicadores, ventanas nuevas y más ordenadas, cielo renovado, mejor alto contraste y medidores de «Esta noche» que ya no se cortan. El botón Atrás cierra las ventanas."],
       ["imp", "Consejo para que la app no deje de grabar: anclarla en recientes con «Mantener abierta» (también en Acerca de)."]
