@@ -253,8 +253,8 @@
   .appItem { display: flex; align-items: center; gap: 10px; background: var(--tile); border-radius: 10px; padding: 10px 12px; }
   .appItem .nm { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .appItem .nm small { display: block; color: var(--muted); font-size: 11px; }
-  .appItem b { font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .appItem b span { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 2px; }
+  .appItem > b { font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .appItem > b span { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 2px; }
   .appItem .del { background: none; color: var(--muted); padding: 4px 6px; font-size: 14px; white-space: nowrap; }
   .appItem .ren { background: none; padding: 4px 6px; font-size: 14px; opacity: .75; }
   /* El emoji ✏️ apunta a la derecha: en espejo para que se incline hacia la izquierda (petición de Jhonny). */
@@ -262,7 +262,12 @@
   .appItem .nm input { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--acc);
     background: var(--card); color: var(--text); font: inherit; font-size: 14px; }
   .appItem .save { padding: 6px 12px; font-size: 13px; white-space: nowrap; }
-  .appItem .del.ask { background: var(--bad); color: #fff; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+  .appNow { margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.appNow b { color: var(--text); }
+.appItem .nm small.wi b { color: var(--text); font-weight: 700; }
+.appItem .nm small.wi.reach { color: var(--good); }
+.appItem .nm small.wi.reach b { color: var(--good); }
+.appItem .del.ask { background: var(--bad); color: #fff; padding: 4px 10px; font-size: 13px; font-weight: 600; }
   .meter .step { font-size: 15px; line-height: 1.5; margin: 12px 0 6px; }
   .meter .live { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
   .meter .live span { font-size: 16px; color: var(--muted); font-weight: 600; margin-left: 4px; }
@@ -441,6 +446,7 @@
   <div class="aboutLogo" aria-hidden="true">🔌</div>
   <div class="newsVer" id="appsTitle">Mis aparatos</div>
   <div class="newsSub">Lo que gasta cada aparato de tu casa</div>
+  <div class="appNow" id="appNow" hidden></div>
   <div id="appList"></div>
   <div class="btns"><button id="mStart">＋ Medir un aparato</button><button class="secondary" id="appsOk">Cerrar</button></div>
 </div>
@@ -686,7 +692,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
-<script src="changelog.js?v=2"></script>
+<script src="changelog.js?v=3"></script>
 <script>
 (function () {
   "use strict";
@@ -768,6 +774,7 @@
     var eta = $("eta"), verdict = $("etaVerdict");
     verdict.hidden = true;
     $("etaSun").hidden = true;
+    whatIf = null;
 
     if (avgA <= -IDLE_A) {
       var hours = usableAh / -avgA;
@@ -782,6 +789,8 @@
       } else {
         $("etaBig").innerHTML = fmtDuration(hours);
         $("etaLine").innerHTML = "Llegas hasta las <b>" + fmtClock(reach) + "</b>";
+        whatIf = { at: now, avgW: avgW, usableWh: usableAh * b.voltageV, hours: hours, sunrise: sunrise.getTime(),
+          day: isDaytime(new Date(now)) };
         var margin = hours - hoursToSunrise;
         var maxW = usableAh * b.voltageV / hoursToSunrise;
         verdict.hidden = false;
@@ -810,6 +819,7 @@
     }
     $("etaNote").textContent = note;
     $("etaNote").hidden = false;
+    if (!$("appsCard").hidden) updateWhatIf();
     // Para los KPIs: consumo medio máximo que permite llegar al próximo amanecer.
     var hToSunrise = (nextSunrise(new Date(now)) - now) / 3600000;
     return { usableAh: usableAh, maxW: usableAh > 0 ? usableAh * b.voltageV / hToSunrise : 0 };
@@ -1763,11 +1773,41 @@
     var list = appliances.slice().sort(function (a, b) { return b.w - a.w; });
     $("appList").innerHTML = "<div class='appList'>" + list.map(function (a) {
       var d = new Date(a.t);
-      return "<div class='appItem'><div class='nm'>" + esc(a.name) + "<small>medido el " +
-        d.toLocaleDateString("es", { day: "numeric", month: "short" }) + "</small></div><b>" + fmt(a.w, 0) +
+      return "<div class='appItem'><div class='nm'>" + esc(a.name) + "<small class='wi' data-id='" + a.id + "' data-measured='medido el " +
+        d.toLocaleDateString("es", { day: "numeric", month: "short" }) + "'></small></div><b>" + fmt(a.w, 0) +
         "<span>W</span></b><button class='icon ren' data-id='" + a.id + "' aria-label='Cambiar el nombre de " + esc(a.name) +
         "' title='Cambiar el nombre'>✏️</button><button class='del' data-id='" + a.id + "' aria-label='Borrar " + esc(a.name) + "'>✕</button></div>";
     }).join("") + "</div>";
+    updateWhatIf();
+  }
+
+  // "Si apagas X, llegas a las HH:MM": con la media de consumo de la autonomía (30 min) y la energía usable
+  // hasta el corte, cuánto duraría la batería sin ese aparato. No sabemos si está encendido: si gasta casi
+  // tanto como toda la casa, se dice que no lo parece. Se actualiza en su sitio (no rehace la lista, para no
+  // borrar un nombre a medio escribir).
+  var whatIf = null; // { at, avgW, usableWh, hours, sunrise, day } mientras descarga; si no, null
+  function updateWhatIf() {
+    var ok = whatIf && last.basic && Date.now() - whatIf.at < 2 * 60000;
+    var head = $("appNow");
+    head.hidden = !ok || !appliances.length;
+    if (ok) {
+      head.innerHTML = "Ahora llegas hasta las <b>" + fmtClock(new Date(whatIf.at + whatIf.hours * 3600000)) +
+        "</b> (media de " + fmt(whatIf.avgW, 0) + " W). Debajo de cada aparato: hasta qué hora llegarías si lo apagas," +
+        " si ahora está encendido." + (whatIf.day ? " De día la cuenta incluye el sol." : "");
+    }
+    $("appList").querySelectorAll("small.wi").forEach(function (el) {
+      var a = findApp(el.dataset.id);
+      el.classList.remove("reach");
+      if (!ok || !a) { el.textContent = el.dataset.measured; return; }
+      var rest = whatIf.avgW - a.w;
+      if (rest < whatIf.avgW * 0.1) { el.textContent = "Ahora no parece encendido"; return; }
+      var h = whatIf.usableWh / rest, end = new Date(whatIf.at + h * 3600000);
+      var nowReach = whatIf.at + whatIf.hours * 3600000 >= whatIf.sunrise, offReach = end.getTime() >= whatIf.sunrise;
+      el.innerHTML = h > 24 ? "Sin él: <b>más de 24 h</b>" :
+        "Sin él: hasta las <b>" + fmtClock(end) + "</b> · +" + fmtDurationText(h - whatIf.hours) +
+        (offReach && !nowReach ? " · ✔ llegas al amanecer" : "");
+      if (offReach && !nowReach) el.classList.add("reach");
+    });
   }
   // Borrar en dos toques: ✕ → "¿Borrar?" (rojo) → borrado. Sin confirm(): en la APK el WebView no muestra
   // esas ventanas (no hay WebChromeClient) y confirm() devuelve false sin preguntar, así que nunca borraba.
