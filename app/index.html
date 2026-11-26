@@ -247,6 +247,39 @@
     100% { opacity: 1; transform: scale(1); }
   }
   @media (prefers-reduced-motion: reduce) { .modal, .modal .about { animation: none; } }
+
+  /* ---- Ayuda: "?" en cada tarjeta que abre un globo de texto pegado al botón (idea de Jhonny, 26-nov-2026).
+     El globo sale junto al "?" con su piquito apuntándole; si no cabe hacia un lado, se abre hacia el otro. */
+  .helpBtn { flex: none; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1.5px solid currentColor;
+    background: transparent; color: var(--muted); font: 700 12px/1 system-ui, sans-serif; opacity: .6; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; position: relative; text-transform: none; letter-spacing: 0; }
+  .helpBtn::before { content: ""; position: absolute; inset: -12px; } /* zona de toque grande para el dedo */
+  .helpBtn:hover, .helpBtn.on { opacity: 1; color: var(--acc); }
+  body.neon .helpBtn.on { box-shadow: 0 0 8px var(--acc); }
+  .hasHelp { position: relative; }
+  .tile.kpi > .helpBtn.helpBtn, #socCard > .helpBtn { position: absolute; top: 8px; right: 8px; z-index: 2; }
+  h2 > .helpBtn { margin-left: auto; align-self: center; }
+  h2 > .badge + .helpBtn { margin-left: 2px; }
+  .chartHead .legend .helpBtn { margin-left: 2px; }
+  .eta .helpBtn { color: rgba(230,237,243,.85); margin-left: 8px; vertical-align: 1px; }
+  .eta .labelRow { display: flex; align-items: center; }
+  .helpTip { position: absolute; z-index: 40; width: min(330px, calc(100vw - 32px)); padding: 12px 14px 13px;
+    border-radius: 14px; font-size: 13.5px; line-height: 1.5; color: var(--text);
+    background: color-mix(in srgb, var(--card) 90%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--acc) 70%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 35%, transparent), 0 0 18px color-mix(in srgb, var(--acc) 45%, transparent),
+      0 12px 36px rgba(0, 0, 0, .55);
+    animation: modalPop .32s cubic-bezier(.2, .9, .3, 1.25) both; }
+  .helpTip.closing { animation: modalShrink .18s cubic-bezier(.5, 0, .75, .3) forwards; pointer-events: none; }
+  .helpTip h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .helpTip p { margin: 0 0 6px; } .helpTip p:last-child { margin-bottom: 0; }
+  /* Piquito: un cuadrado girado con el mismo borde, pegado al lado del globo que mira al "?" */
+  .helpTip i { position: absolute; width: 12px; height: 12px; margin-left: -6px; transform: rotate(45deg);
+    background: color-mix(in srgb, var(--card) 96%, transparent); border: 1px solid color-mix(in srgb, var(--acc) 70%, transparent); }
+  .helpTip.below i { top: -7px; border-right: 0; border-bottom: 0; }
+  .helpTip.above i { bottom: -7px; border-left: 0; border-top: 0; }
+  @media (prefers-reduced-motion: reduce) { .helpTip, .helpTip.closing { animation: none; } }
   body.modalOpen { overflow: hidden; }
   .about { position: relative; font-size: 13px; line-height: 1.5; text-align: center; }
   .about .close { position: absolute; top: 10px; right: 10px; }
@@ -738,7 +771,7 @@
     <path id="hillNear" d="M0 181 C 220 170, 430 187, 650 177 S 900 168, 1000 176 L1000 200 L0 200 Z"/>
   </svg>
   <div class="content">
-    <div class="label" id="etaLabel">Autonomía</div>
+    <div class="labelRow"><div class="label" id="etaLabel">Autonomía</div></div>
     <div class="big" id="etaBig">--</div>
     <div class="line" id="etaLine">Esperando datos del BMS…</div>
     <div class="gridBig" id="gridBig" hidden><div class="label">Sin corriente<span> · de la calle</span></div>
@@ -803,13 +836,13 @@
   <div class="chart" id="chart"></div>
 </div>
 
-<div class="card">
+<div class="card" id="cellsCard">
   <h2>Celdas <span class="badge" id="delta"></span></h2>
   <div class="cells" id="cells"><div class="empty" style="grid-column:1/-1">Sin datos todavía</div></div>
 </div>
 
 <div class="grid2">
-  <div class="card">
+  <div class="card" id="batteryCard">
     <h2>Batería</h2>
     <dl>
       <dt>Salud (SOH)</dt><dd id="soh">--</dd>
@@ -820,7 +853,7 @@
       <dt>Temp. ambiente</dt><dd id="tamb">--</dd>
     </dl>
   </div>
-  <div class="card">
+  <div class="card" id="statusCard">
     <h2>Estado del BMS</h2>
     <dl>
       <dt>Carga</dt><dd id="stCharge">--</dd>
@@ -2227,10 +2260,113 @@
   // Prueba de diseño en el navegador (sin la APK no funcionan, pero se ven): ?panel=alertas / ?panel=exportar
   if (/[?&]panel=alertas/.test(location.search)) setTimeout(function () { togglePanel("settingsCard", "bell", true); }, 0);
   if (/[?&]panel=exportar/.test(location.search)) setTimeout(function () { togglePanel("exportCard", "exportBtn", true); }, 0);
+
+  // ---------------------------------------------------------------- ayuda: "?" y globo de texto
+  // Cada tarjeta lleva un "?" que abre un globo con lo que mide y cómo. Textos cortos, para cualquier usuario.
+  var HELP = {
+    eta: ["⏳ Autonomía",
+      "Cuánto tiempo le queda a la batería hasta el corte del inversor (el 15 % de carga), si sigues gastando como en la última media hora. Debajo, a qué hora llegarías, si llegas al amanecer y el máximo de vatios para llegar.",
+      "De noche es bastante fiable; de día no, porque el sol también carga y se mezcla en la cuenta. Si está cargando, dice cuánto falta para llenarla y de dónde viene la carga.",
+      "Si hay apagón, a la derecha en rojo: cuánto tiempo llevas sin corriente de la calle y a qué hora se fue."],
+    socCard: ["🔋 Carga restante",
+      "El porcentaje de carga de la batería (SOC), que calcula el BMS contando los amperios que entran y salen. Debajo, la energía que queda en kWh.",
+      "El agua es azul cuando carga. Cuando gasta: verde, ámbar por debajo del 30 % y roja por debajo del 20 %.",
+      "El BMS solo se recalibra al llegar al 100 %, así que con el tiempo puede desviarse unos puntos."],
+    kPower: ["⚡ Potencia",
+      "La energía que entra o sale de la batería en este momento, en vatios (W). Se calcula multiplicando el voltaje por la corriente que mide el BMS.",
+      "De noche es el consumo de tu casa más lo que gasta el propio inversor. De día con sol no es el consumo de la casa: es lo que sobra (entra en la batería) o lo que falta después de que los paneles alimentan la casa.",
+      "Azul: entra. Gastando: verde si con ese ritmo llegas al amanecer, ámbar si vas justo y rojo si no llegas."],
+    kCurrent: ["🔌 Corriente",
+      "Los amperios (A) que entran o salen de la batería ahora mismo. Es lo que mide directamente el sensor del BMS: la potencia y la autonomía se calculan a partir de este dato.",
+      "Azul: entrando. Saliendo: verde si llegas al amanecer, ámbar si vas justo y rojo si no llegas."],
+    kVoltage: ["〰️ Voltaje",
+      "El voltaje total de la batería y, debajo, el de cada celda de media (8 celdas en las de 24 V, 16 en las de 48 V). Lo normal es entre 3,10 y 3,55 V por celda.",
+      "Sube al cargar y baja al gastar, pero en estas baterías (LiFePO4) cambia muy poco casi todo el tiempo: para saber cuánta carga queda, fíate más del porcentaje."],
+    kRemaining: ["🪫 Restante",
+      "Los amperios-hora (Ah) que le quedan a la batería según el BMS y, debajo, lo mismo en kWh (Ah × voltaje).",
+      "No todo se puede usar: el inversor corta al 15 %, así que lo aprovechable es algo menos. Se pone ámbar por debajo del 30 % y rojo por debajo del 20 %."],
+    nightCard: ["🌙 Esta noche",
+      "Resumen desde el anochecer: la energía gastada (su color dice si amanecerás con carga), el consumo medio, el pico más alto frente a la potencia de tu inversor y la energía que entró hoy del sol y de la red.",
+      "Por la mañana pasa a llamarse «Anoche» y queda como resumen hasta el siguiente anochecer. Las horas del anochecer y el amanecer salen de tu provincia (campana → Lugar)."],
+    chartCard: ["📈 Gráfica",
+      "Arriba, el porcentaje de carga. Abajo, lo que entra en la batería (azul) y lo que sale (ámbar). Las franjas moradas son las noches y las líneas rojas y azules marcan cuándo se fue y volvió la corriente.",
+      "Pellizca con dos dedos para ampliar un rato y pulsa «↺ Ver todo» para volver. Los huecos son ratos en que la app estaba cerrada."],
+    cellsCard: ["🧩 Celdas",
+      "El voltaje de cada celda de la batería, en milivoltios (mV). Arriba, la diferencia entre la más alta y la más baja: cuanto más pequeña, mejor equilibrada está la batería.",
+      "Hasta 30 mV, muy bien (verde); hasta 80 mV, a vigilar (ámbar); más, revisa la batería (rojo). Es normal que la diferencia crezca al final de la carga o con la batería casi vacía."],
+    batteryCard: ["🔋 Batería",
+      "Datos que da el BMS sobre la salud de la batería: SOH (capacidad actual frente a cuando era nueva), ciclos de carga completos, capacidad total y temperaturas de las celdas, de los transistores del BMS (MOS) y del ambiente."],
+    statusCard: ["🛡️ Estado del BMS",
+      "Lo que el BMS permite en este momento: si deja cargar y descargar, si alguna protección está activa (por ejemplo, voltaje o temperatura fuera de rango), si está equilibrando celdas y si hay avisos o fallos.",
+      "Algunos datos salen «por confirmar» porque aún no sabemos con certeza qué significan. La app nunca cambia nada en el BMS: solo lee."]
+  };
+  // Dónde va el "?" de cada tarjeta: en la esquina (KPIs y carga restante) o al final del título.
+  (function () {
+    function where(id) {
+      var el = $(id);
+      if (id === "eta") return el.querySelector(".labelRow");
+      if (id === "chartCard") return el.querySelector(".legend");
+      var h = el.querySelector("h2");
+      return (h && id !== "socCard") ? h : el;
+    }
+    Object.keys(HELP).forEach(function (id) {
+      var b = document.createElement("button");
+      b.className = "helpBtn"; b.type = "button"; b.textContent = "?";
+      b.setAttribute("aria-label", "Qué es " + HELP[id][0].replace(/^\S+\s/, ""));
+      b.dataset.help = id;
+      where(id).appendChild(b);
+    });
+  })();
+  var helpOpen = null; // { btn, tip }
+  function closeHelp() {
+    if (!helpOpen) return false;
+    var o = helpOpen; helpOpen = null;
+    o.btn.classList.remove("on");
+    o.tip.classList.add("closing");
+    setTimeout(function () { o.tip.remove(); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180);
+    return true;
+  }
+  function openHelp(btn) {
+    var id = btn.dataset.help, txt = HELP[id];
+    var tip = document.createElement("div");
+    tip.className = "helpTip"; tip.setAttribute("role", "tooltip");
+    tip.innerHTML = "<i></i><h3>" + txt[0] + "</h3>" + txt.slice(1).map(function (t) { return "<p>" + t + "</p>"; }).join("");
+    document.body.appendChild(tip);
+    // Posición: el globo empieza junto al "?" y se abre hacia el lado donde haya sitio (a la izquierda si
+    // el botón está cerca del borde derecho). Debajo del botón si cabe en la pantalla; si no, encima.
+    var r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    var w = tip.offsetWidth, h = tip.offsetHeight, cx = r.left + r.width / 2, M = 12;
+    var left = cx + w - 26 <= vw - M ? cx - 26 : cx + 26 - w;
+    left = Math.max(M, Math.min(left, vw - M - w));
+    var below = r.bottom + 10 + h <= vh - M || r.top - 10 - h < M;
+    var top = below ? r.bottom + 10 : r.top - 10 - h;
+    tip.classList.add(below ? "below" : "above");
+    tip.style.left = (left + window.scrollX) + "px";
+    tip.style.top = (top + window.scrollY) + "px";
+    var tail = Math.max(16, Math.min(cx - left, w - 16));
+    tip.querySelector("i").style.left = tail + "px";
+    tip.style.transformOrigin = tail + "px " + (below ? "0" : "100%");
+    btn.classList.add("on");
+    helpOpen = { btn: btn, tip: tip };
+  }
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".helpBtn");
+    if (helpOpen && (helpOpen.tip.contains(e.target))) return; // tocar dentro del globo no lo cierra
+    var same = helpOpen && helpOpen.btn === btn;
+    closeHelp();
+    if (btn && !same) openHelp(btn);
+  });
+  window.addEventListener("resize", closeHelp);
+  // Prueba en el navegador: ?ayuda=kPower (o eta, socCard, kVoltage, nightCard, chartCard, cellsCard…)
+  (function () {
+    var m = /[?&]ayuda=(\w+)/.exec(location.search);
+    if (m) setTimeout(function () { var b = document.querySelector('.helpBtn[data-help="' + m[1] + '"]'); if (b) openHelp(b); }, 600);
+  })();
   // Cierra la ventana emergente de más arriba (la que se ve). Devuelve true si había alguna abierta.
   // La usan la tecla Escape y el botón Atrás de Android (MainActivity.onBackPressed → window.mmBack).
   function open_(id) { var el = $(id); return !el.hidden && !el.classList.contains("closing"); }
   function closeTopModal() {
+    if (closeHelp()) return true; // primero el globo de ayuda, si hay
     if (open_("updateCard")) closeUpdate();
     else if (open_("renameCard")) closeRename();
     else if (open_("keepCard")) closeKeep();
