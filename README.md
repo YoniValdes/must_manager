@@ -6,6 +6,8 @@ App Android para vigilar por Bluetooth la batería LiFePO4 de los equipos solare
 
 > App no oficial, hecha por un usuario para usuarios. No está relacionada con MUST Power.
 
+![Guía del panel de Must Manager](docs/infografia/guia_del_panel.png)
+
 ## Qué hace
 
 - **Panel en tiempo real:** SOC, potencia, voltaje, corriente, las 8 o 16 celdas, temperaturas y estado del BMS.
