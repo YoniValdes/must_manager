@@ -151,6 +151,14 @@
   .night .gcell { text-align: center; padding: 10px 8px 10px; }
   .night .gauge { width: 100%; height: 118px; }
   .night .gcell .sub { min-height: 32px; line-height: 1.35; }
+  /* Un solo medidor con aguja (SOC al amanecer) y tres cifras simples (consumo medio, pico y lo que entró). */
+  .night .gcell.main .gauge { height: 132px; }
+  .night .stat { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+  .night .stat b { font-size: 34px; font-weight: 800; line-height: 1.1; }
+  .night .stat b.charge { color: var(--charge); }
+  .night .stat b.warn { color: var(--warn); }
+  @media (max-width: 720px) { .night { grid-template-columns: repeat(3, 1fr); } .night .gcell.main { grid-column: 1 / -1; }
+    .night .stat b { font-size: 24px; } }
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
@@ -750,10 +758,10 @@
   <h2><span id="nightTitle">Esta noche</span> <span class="badge" id="nightRange"></span></h2>
   <!-- Medidores semicirculares: cada uno con una escala que tiene sentido (ver renderNight) -->
   <div class="night">
-    <div class="tile gcell"><label id="gSocLabel">SOC al amanecer</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
-    <div class="tile gcell"><label>Consumo medio</label><div class="gauge" id="gAvg"></div><div class="sub" id="nCover">&nbsp;</div></div>
-    <div class="tile gcell"><label>Pico de consumo</label><div class="gauge" id="gPeak"></div><div class="sub" id="nPeakAt">&nbsp;</div></div>
-    <div class="tile gcell"><label>Hoy entró (sol + red)</label><div class="gauge" id="gIn"></div><div class="sub" id="tOut">&nbsp;</div></div>
+    <div class="tile gcell main"><label id="gSocLabel">SOC al amanecer</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
+    <div class="tile gcell stat"><label>Consumo medio</label><b id="nAvg">--</b><div class="sub" id="nCover">&nbsp;</div></div>
+    <div class="tile gcell stat"><label>Pico de consumo</label><b id="nPeak">--</b><div class="sub" id="nPeakAt">&nbsp;</div></div>
+    <div class="tile gcell stat"><label>Hoy entró (sol + red)</label><b id="nIn">--</b><div class="sub" id="tOut">&nbsp;</div></div>
   </div>
   <p class="hint" id="histHint" style="margin:10px 0 0"></p>
 </div>
@@ -1668,8 +1676,7 @@
 
     if (!night.length) {
       gauge("gKwh", null, 100, "%", 0, null, socZones());
-      gauge("gAvg", null, 1, "W", 0, null, [[0.45, "good"], [0.55, "warn"], [1, "bad"]]);
-      gauge("gPeak", null, 1, "W", 0, null, [[0.5, "good"], [0.8, "warn"], [1, "bad"]]);
+      setVal("nAvg", "--", "W"); setVal("nPeak", "--", "W"); $("nPeak").className = "";
       $("nSoc").innerHTML = $("nCover").innerHTML = $("nPeakAt").innerHTML = "&nbsp;";
       $("histHint").textContent = "Todavía no hay lecturas grabadas de " + title.toLowerCase() +
         ". La app graba una cada 10 s mientras está conectada, también con la pantalla apagada.";
@@ -1699,22 +1706,22 @@
       gauge("gKwh", Math.max(0, socDawn), 100, "%", 0, socDawn < CUTOFF_SOC ? "bad" : socDawn < CUTOFF_SOC + 10 ? "warn" : "good", socZones());
       $("nSoc").textContent = dawnTxt;
 
-      // 2) Consumo medio frente al límite para llegar al amanecer desde el anochecer (el límite queda a la mitad).
-      var limitW = availKwh * 1000 / nightHours;
-      gauge("gAvg", disMinutes ? avgW : null, limitW * 2, "W", 0, avgW <= limitW * 0.9 ? "good" : avgW <= limitW * 1.1 ? "warn" : "bad",
-        [[0.45, "good"], [0.55, "warn"], [1, "bad"]]);
-      $("nCover").textContent = "límite para llegar: " + fmt(limitW, 0) + " W";
+      // 2) Consumo medio de la noche (solo los minutos descargando). El límite para llegar ya lo da la
+      // tarjeta de autonomía: aquí no se compara, para no contradecir al SOC previsto.
+      setVal("nAvg", disMinutes ? fmt(avgW, 0) : "--", "W");
+      $("nCover").textContent = disMinutes ? "en " + fmtDurationText(disMinutes / 60) + " descargando" : "\u00a0";
 
-      // 3) Pico frente a la potencia del inversor.
+      // 3) Pico: cifra simple; en ámbar solo si se acercó al máximo del inversor (> 80 %).
       var pk = peak.w < 0 ? -peak.w : 0;
-      gauge("gPeak", pk || null, INVERTER_W, "W", 0, pk < INVERTER_W * 0.5 ? "good" : pk < INVERTER_W * 0.8 ? "warn" : "bad",
-        [[0.5, "good"], [0.8, "warn"], [1, "bad"]]);
+      setVal("nPeak", pk ? fmt(pk, 0) : "--", "W");
+      $("nPeak").className = pk >= INVERTER_W * 0.8 ? "warn" : "";
       $("nPeakAt").textContent = pk ? "a las " + fmtClock(new Date(peak.t)) + " · máx. inversor " + INVERTER_W + " W" : "\u00a0";
       $("histHint").textContent = "";
     }
 
     var today = rows.filter(function (r) { return r[0] >= at(0, "00:00"); });
-    gauge("gIn", today.length ? sum(today, 4) / 1000 : null, BATTERY_KWH, "kWh", 2, "charge");
+    setVal("nIn", today.length ? fmt(sum(today, 4) / 1000, 2) : "--", "kWh");
+    $("nIn").className = "charge";
     $("tOut").textContent = today.length ? "salió " + fmt(sum(today, 3) / 1000, 2) + " kWh · batería " + fmt(BATTERY_KWH, 1) + " kWh" : " ";
   }
 
@@ -1768,6 +1775,10 @@
     if (zones) {
       var text = css.getPropertyValue("--text").trim(), muted = css.getPropertyValue("--muted").trim();
       var zw = Math.max(6, Math.round(geo.stroke * 0.8));
+      // Medidor con aguja: el centro sube para que el número quepa DEBAJO del eje (antes la bola lo tapaba).
+      var numH = Math.round(geo.font * 1.05) + 6;
+      geo.r = Math.max(20, Math.min((el.clientWidth - zw) / 2 - 8, el.clientHeight - numH - zw / 2 - 6));
+      geo.cy = zw / 2 + 4 + geo.r;
       g.setOption({
         animation: false,
         series: [{
@@ -1783,7 +1794,7 @@
           axisLabel: { show: geo.r > 34, distance: -zw - 2, fontSize: Math.max(9, geo.unit - 2), color: muted,
             formatter: function (v) { return v === 0 || Math.abs(v - max) < max * 1e-6 ? fmt(v, 0) : ""; } },
           splitNumber: 1,
-          detail: { offsetCenter: [0, Math.round(geo.r * 0.02) + 4], valueAnimation: false, fontSize: Math.round(geo.font * 0.82), fontWeight: 800,
+          detail: { offsetCenter: [0, Math.round(numH / 2) + 6], valueAnimation: false, fontSize: geo.font, fontWeight: 800,
             color: st ? GAUGE_COLORS[st] : text, fontFamily: "Nunito, system-ui, sans-serif",
             formatter: function () { return value == null ? "--" : fmt(value, decimals) + "{u| " + unit + "}"; },
             rich: { u: { fontSize: geo.unit, fontWeight: 600, color: muted } } },
