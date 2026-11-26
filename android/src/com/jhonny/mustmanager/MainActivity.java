@@ -160,6 +160,12 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             return nm != null && nm.areNotificationsEnabled();
         }
 
+        /** Apagón: {type:"grid", state, since, lastSeen, back} (lo que guarda GridWatch desde el servicio). */
+        @JavascriptInterface
+        public String getGrid() {
+            return GridWatch.json(MainActivity.this, System.currentTimeMillis()).toString();
+        }
+
         @JavascriptInterface
         public String getSettings() {
             return Settings.load(MainActivity.this).toJson().toString();
