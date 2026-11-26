@@ -232,6 +232,19 @@
   .about .aboutOk { margin-top: 12px; min-width: 130px; }
   .about .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
   .about .btns .aboutOk { margin-top: 0; }
+  /* Actualizaciones: bloque en Acerca de, ventana "Versión nueva" y punto en el botón ⓘ */
+  .updBox { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--tile); display: grid; gap: 6px; justify-items: center; }
+  .updBox .updStatus { font-size: 13px; color: var(--muted); }
+  .updBox .updStatus.ok { color: var(--good); }
+  .updBox .updStatus.new { color: var(--acc); font-weight: 700; }
+  .updBox label { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  button.icon.hasUpdate { position: relative; }
+  button.icon.hasUpdate::after { content: ""; position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--good); box-shadow: 0 0 0 2px var(--bg), 0 0 8px var(--good); }
+  .upd .updMsg { margin: 12px 0 0; font-size: 14px; line-height: 1.45; }
+  .upd .updMsg.err { color: var(--bad); }
+  .upd .updBar { height: 10px; border-radius: 999px; background: var(--tile); overflow: hidden; margin-top: 12px; }
+  .upd .updBar i { display: block; height: 100%; width: 0; background: var(--acc); box-shadow: 0 0 10px var(--acc); transition: width .3s; }
   /* Pantallas bajas (tablet en horizontal, móvil apaisado): sin el emoji grande, para ganar altura */
   @media (max-height: 620px) { .modal .about .aboutLogo { display: none; } .modal .about { padding-top: 14px; } }
   /* Medidor de aparatos */
@@ -415,7 +428,7 @@
   <p>Monitor por Bluetooth de la batería de los equipos solares <b>Must HBP</b> de 24 V y 48 V.
     Guarda el historial, calcula si llegas al amanecer y exporta a Excel o CSV.</p>
   <ul>
-    <li><b>Solo lectura</b> y <b>sin internet</b>: nunca cambia nada del BMS.</li>
+    <li><b>Solo lectura</b>: nunca cambia nada del BMS. Sin internet, salvo para buscar actualizaciones.</li>
     <li>Cierra <b>BMS tools</b> antes de conectar.</li>
     <li>🔒 Déjala <b>anclada en recientes</b> para que no deje de grabar · <a href="#" id="aKeep">cómo</a></li>
   </ul>
@@ -425,7 +438,25 @@
   </dl>
   <p class="sub">¿Ideas o fallos? Escríbeme, me ayuda a mejorarla.<br>
     App no oficial, sin relación con MUST Power. Úsala bajo tu responsabilidad.</p>
+  <div class="updBox" id="updBox" hidden>
+    <span class="updStatus" id="updStatus">Versión instalada: --</span>
+    <button class="secondary" id="updCheck">🔄 Buscar actualización</button>
+    <label><input type="checkbox" id="updAuto" checked> Avisarme cuando haya una versión nueva</label>
+  </div>
   <div class="btns"><button class="secondary" id="aNews">✨ Novedades</button><button id="aOk" class="aboutOk">Aceptar</button></div>
+</div>
+</div>
+
+<div class="modal" id="updateCard" hidden>
+<div class="card settings about news upd" role="dialog" aria-modal="true" aria-labelledby="updTitle">
+  <button class="icon close" id="uClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">🚀</div>
+  <div class="newsVer" id="updTitle">Versión nueva disponible</div>
+  <div class="newsSub" id="updSub"></div>
+  <div id="updBody"></div>
+  <div class="updBar" id="updBar" hidden><i id="updFill"></i></div>
+  <p class="updMsg" id="updMsg" hidden></p>
+  <div class="btns"><button id="uGo">Actualizar</button><button class="secondary" id="uLater">Ahora no</button></div>
 </div>
 </div>
 
@@ -1780,6 +1811,8 @@
       case "status": renderStatus(m.hex); break;
       case "packs": renderPacks(m.packs); break;
       case "grid": grid = m; renderGrid(); break;
+      case "update": case "showUpdate": case "updatePermission": case "updateStarted":
+      case "updateProgress": case "updateError": onUpdateMsg(m); break;
       case "debug": $("debugInfo").textContent = m.text; break;
     }
   };
@@ -1894,7 +1927,8 @@
   // La usan la tecla Escape y el botón Atrás de Android (MainActivity.onBackPressed → window.mmBack).
   function open_(id) { var el = $(id); return !el.hidden && !el.classList.contains("closing"); }
   function closeTopModal() {
-    if (open_("renameCard")) closeRename();
+    if (open_("updateCard")) closeUpdate();
+    else if (open_("renameCard")) closeRename();
     else if (open_("keepCard")) closeKeep();
     else if (open_("newsCard")) closeNews(); else if (open_("meterCard")) closeMeter();
     else if (open_("appsCard")) closeApps(); else if (open_("themeCard")) closeTheme();
@@ -1906,6 +1940,124 @@
   }
   window.mmBack = closeTopModal;
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeTopModal(); });
+
+  // ---------------------------------------------------------------- actualizaciones (solo APK)
+  // La app pregunta a GitHub una vez al día si hay versión nueva (Java, Updater) y avisa con una notificación.
+  // Aquí: el botón "Buscar actualización" de Acerca de y la ventana "Versión nueva" con sus novedades,
+  // la barra de descarga y los pasos del instalador de Android. Nada de esto envía datos del usuario.
+  // Prueba de diseño en el navegador: ?panel=actualizar
+  var upd = null, updWorking = false;
+  function fmtMB(b) { return b > 0 ? (b / 1048576).toFixed(1).replace(".", ",") + " MB" : ""; }
+  // Las novedades vienen en el texto de la Release ("- **Nuevo:** …", lo escribe el workflow con changelog.js).
+  function updNotes(body) {
+    var map = { "Nuevo": "new", "Corregido": "fix", "Mejorado": "imp" }, items = [];
+    String(body || "").split(/\r?\n/).forEach(function (l) {
+      var m = /^\s*[-*]\s*\*\*(Nuevo|Corregido|Mejorado):\*\*\s*(.+)$/.exec(l);
+      if (m) items.push([map[m[1]], m[2]]);
+    });
+    return items;
+  }
+  function renderUpdBox() {
+    if (!upd) return;
+    $("updAuto").checked = upd.auto !== false;
+    var st = $("updStatus");
+    if (upd.newer) { st.className = "updStatus new"; st.textContent = "🚀 Hay una versión nueva: " + upd.latest; $("updCheck").textContent = "Ver la versión " + upd.latest; }
+    else { st.className = "updStatus" + (upd.checkedAt ? " ok" : ""); st.textContent = upd.checkedAt ? "✔ Tienes la última versión (" + upd.current + ")" : "Versión instalada: " + upd.current; $("updCheck").textContent = "🔄 Buscar actualización"; }
+    $("aboutBtn").classList.toggle("hasUpdate", !!upd.newer);
+  }
+  function setUpdMsg(text, err) { var el = $("updMsg"); el.hidden = !text; el.textContent = text || ""; el.classList.toggle("err", !!err); }
+  function setUpdWorking(on) { updWorking = on; $("uGo").disabled = on; $("uLater").textContent = on ? "Ocultar" : "Ahora no"; }
+  function openUpdate() {
+    if (!upd || !upd.newer) return;
+    var items = updNotes(upd.notes);
+    $("updTitle").textContent = "Versión " + upd.latest + " disponible";
+    $("updSub").textContent = "Tienes la " + upd.current + (upd.size ? " · descarga de " + fmtMB(upd.size) : "");
+    $("updBody").innerHTML = items.length ? "<ul>" + items.map(function (it) {
+      return "<li><span class='tag t-" + esc(it[0]) + "'>" + (NEWS_TAGS[it[0]] || "") + "</span><span>" + esc(it[1]) + "</span></li>";
+    }).join("") + "</ul>" : "<p>Mejoras y correcciones.</p>";
+    if (!updWorking) { $("updBar").hidden = true; setUpdMsg(""); $("uGo").textContent = "Actualizar"; }
+    togglePanel("aboutCard", "aboutBtn", false);
+    showModal($("updateCard"));
+    document.body.classList.add("modalOpen");
+    $("updateCard").querySelector(".card").scrollTop = 0;
+  }
+  function closeUpdate() {
+    hideModal($("updateCard"));
+    document.body.classList.remove("modalOpen");
+  }
+  function onUpdateMsg(m) {
+    if (m.type === "updateProgress") {
+      $("updBar").hidden = false;
+      var pct = m.total > 0 ? Math.min(100, Math.round(m.done / m.total * 100)) : 0;
+      $("updFill").style.width = pct + "%";
+      setUpdMsg(pct >= 100 ? "Descargada. Ahora Android te preguntará si quieres actualizar: pulsa «Actualizar» o «Instalar». "
+        + "Tus datos y ajustes se conservan." : "Descargando… " + pct + " %");
+      if (pct >= 100) setUpdWorking(false);
+      return;
+    }
+    if (m.type === "updateError") {
+      setUpdWorking(false);
+      $("updBar").hidden = true;
+      setUpdMsg(m.message, true);
+      $("uGo").textContent = "Reintentar";
+      $("updCheck").disabled = false;
+      if ($("updateCard").hidden) { $("updStatus").className = "updStatus"; $("updStatus").textContent = m.message; }
+      return;
+    }
+    upd = m;
+    renderUpdBox();
+    $("updCheck").disabled = false;
+    if (m.type === "showUpdate") { openUpdate(); return; }
+    if (m.type === "update") {
+      if (m.newer) openUpdate();
+      return;
+    }
+    if (m.type === "updatePermission") {
+      setUpdWorking(false);
+      $("uGo").textContent = "Continuar";
+      setUpdMsg("Solo la primera vez: Android pide permiso para que Must Manager pueda instalar sus actualizaciones. "
+        + "En la pantalla que se abre, activa «Permitir de esta fuente» y vuelve atrás.");
+      return;
+    }
+    if (m.type === "updateStarted") {
+      setUpdWorking(true);
+      $("updBar").hidden = false;
+      $("updFill").style.width = "0%";
+      setUpdMsg("Descargando…");
+    }
+  }
+  if (hasBridge && typeof window.Android.getUpdate === "function") {
+    $("updBox").hidden = false;
+    try { upd = JSON.parse(window.Android.getUpdate()); } catch (e) { upd = null; }
+    renderUpdBox();
+    $("updCheck").addEventListener("click", function () {
+      if (upd && upd.newer) { openUpdate(); return; }
+      $("updCheck").disabled = true;
+      $("updStatus").className = "updStatus";
+      $("updStatus").textContent = "Buscando…";
+      window.Android.checkUpdate();
+    });
+    $("updAuto").addEventListener("change", function () { window.Android.setUpdateAuto(this.checked); });
+    $("uGo").addEventListener("click", function () {
+      if (updWorking) return;
+      setUpdMsg("");
+      window.Android.startUpdate();
+    });
+  }
+  $("uLater").addEventListener("click", closeUpdate);
+  $("uClose").addEventListener("click", closeUpdate);
+  $("updateCard").addEventListener("click", function (e) { if (e.target === this) closeUpdate(); });
+  if (/[?&]panel=actualizar/.test(location.search)) setTimeout(function () { // prueba de diseño en el navegador
+    $("updBox").hidden = false;
+    upd = { current: "0.21", latest: "0.22", newer: true, size: 2725000, auto: true, checkedAt: Date.now(),
+      notes: "- **Nuevo:** Botón «Actualizar»: la app se actualiza sola.\n- **Nuevo:** Sin corriente: desde qué hora y cuántas horas llevas.\n- **Mejorado:** Amanecer y atardecer según tu provincia." };
+    renderUpdBox();
+    $("uGo").addEventListener("click", function () { // simula la descarga
+      setUpdWorking(true); $("updBar").hidden = false; var p = 0;
+      var t = setInterval(function () { p += 12; onUpdateMsg({ type: "updateProgress", done: p, total: 100 }); if (p >= 100) clearInterval(t); }, 300);
+    });
+    openUpdate();
+  }, 0);
 
   // ---------------------------------------------------------------- medidor de aparatos
   // El BMS solo ve el consumo total de la casa. Para saber lo que gasta un aparato se mide el consumo
