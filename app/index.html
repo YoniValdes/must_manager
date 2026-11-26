@@ -153,6 +153,13 @@
   .night .gcell .sub { min-height: 32px; line-height: 1.35; }
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
+  /* Cabecera de la gráfica: título a la izquierda; leyenda y "↺ 24 h" a la derecha (bajan de línea si no caben). */
+  .chartHead { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin-bottom: 6px; }
+  .chartHead h2 { margin: 0; }
+  .chartHead .legend { margin: 0; gap: 12px; }
+  .chartHead .zoomReset { padding: 3px 10px; font-size: 12px; }
+  /* Pellizcar y arrastrar sobre la gráfica la amplía o la mueve (no la página); el desplazamiento vertical sigue. */
+  #chart { touch-action: pan-y; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   button.icon { background: var(--card); color: var(--text); padding: 0; width: 42px; height: 42px; display: grid; place-items: center; }
   button.icon[aria-expanded="true"] { background: var(--line); color: var(--acc); }
@@ -759,10 +766,14 @@
 </div>
 
 <div class="card" id="chartCard" style="margin-bottom:14px">
-  <h2 id="chartTitle">Últimas 24 horas</h2>
-  <div class="legend"><span><i style="background:#16a34a"></i>SOC (%)</span>
-    <span><i style="background:#0284c7"></i>Cargando (por encima de 0)</span>
-    <span><i style="background:#d97706"></i>Descargando (por debajo de 0)</span></div>
+  <div class="chartHead">
+    <h2 id="chartTitle">Últimas 24 horas</h2>
+    <div class="legend"><span><i style="background:#16a34a"></i>SOC (%)</span>
+      <span><i style="background:#0284c7"></i>Cargando</span>
+      <span><i style="background:#d97706"></i>Descargando</span>
+      <span><i style="background:rgba(99,102,241,.35)"></i>Noche</span>
+      <button class="secondary zoomReset" id="zoomReset" hidden>↺ Ver todo</button></div>
+  </div>
   <div class="chart" id="chart"></div>
 </div>
 
@@ -1784,17 +1795,35 @@
   }
   window.addEventListener("resize", function () { for (var k in gauges) regauge(k); });
 
+  // Zoom: rango visible [desde, hasta] en ms; null = todo. Si el final está en "ahora", sigue avanzando solo.
+  var zoomRange = null, chartSpan = null;
   function renderChart(rows, now) {
     if (!window.echarts) return;
     if (!chart) {
       chart = echarts.init($("chart"));
       window.addEventListener("resize", function () { chart.resize(); });
+      chart.on("datazoom", function () {
+        var dz = chart.getOption().dataZoom[0];
+        var a = dz.startValue, b = dz.endValue;
+        if (a == null || !chartSpan) return;
+        zoomRange = (b - a) >= (chartSpan[1] - chartSpan[0]) - 60000 ? null : { a: a, b: b, live: chartSpan[1] - b < 3 * 60000 };
+        $("zoomReset").hidden = !zoomRange;
+      });
+      $("zoomReset").addEventListener("click", function () {
+        zoomRange = null; $("zoomReset").hidden = true;
+        chart.dispatchAction({ type: "dataZoom", startValue: chartSpan[0], endValue: chartSpan[1] });
+      });
     }
     // Con pocos datos, 24 h los dejaría en un hilo en el borde: se muestran las últimas 3 h hasta tener más.
     var recent = rows.filter(function (r) { return r[0] >= now - 24 * HOUR; });
     var hours = recent.length && now - recent[0][0] <= 3 * HOUR + 2 * BUCKET ? 3 : 24;
     $("chartTitle").textContent = "Batería y consumo · últimas " + hours + " horas";
     var from = now - hours * HOUR, soc = [], pw = [], prev = null;
+    var span0 = chartSpan;
+    chartSpan = [from, now];
+    // Zoom guardado: si el usuario miraba el final ("en directo"), el tramo se desplaza con el tiempo.
+    var zr = zoomRange ? (zoomRange.live && span0 ? { a: zoomRange.a + (now - span0[1]), b: now } : zoomRange) : null;
+    if (zr && zr.a < from) zr = null;
     rows.forEach(function (r) {
       if (r[0] < from) return;
       // Hueco sin datos (app desconectada): la línea se corta en vez de inventar un tramo recto.
@@ -1808,8 +1837,21 @@
     var muted = css.getPropertyValue("--muted").trim() || "#8b98a5", grid = css.getPropertyValue("--line").trim() || "#26313a";
     var glow = theme.neon ? { shadowBlur: 18 } : { shadowBlur: 0 };
     var panelTitle = { color: muted, fontSize: 12, fontWeight: 600 };
+    var accent = css.getPropertyValue("--acc").trim() || "#22c55e";
+    // Franjas de noche (anochecer → amanecer de cada día del tramo): 1 de noche, null de día.
+    var night = [], sr = SUNRISE.split(":"), ss = SUNSET.split(":");
+    for (var t = Math.floor(from / BUCKET) * BUCKET; t <= now; t += 5 * BUCKET) {
+      var d = new Date(t), mins = d.getHours() * 60 + d.getMinutes();
+      var isNight = mins >= +ss[0] * 60 + +ss[1] || mins < +sr[0] * 60 + +sr[1];
+      night.push([t, isNight ? 1 : null]);
+    }
+    var nightArea = { color: "rgba(99,102,241," + (theme.neon ? 0.13 : 0.10) + ")" };
+    var lastSoc = null, lastPw = null;
+    for (var i = soc.length - 1; i >= 0; i--) if (soc[i][1] != null) { lastSoc = soc[i]; break; }
+    for (var j = pw.length - 1; j >= 0; j--) if (pw[j][1] != null) { lastPw = pw[j]; break; }
+    var liveOk = lastSoc && now - lastSoc[0] < 5 * 60000; // el punto que late solo si hay datos recientes
     chart.setOption({
-      animation: false,
+      animation: true, animationDuration: 0, animationDurationUpdate: 250,
       textStyle: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" },
       axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: muted } },
       tooltip: {
@@ -1833,39 +1875,71 @@
       // Un rótulo por panel para que se entienda qué es cada uno.
       title: [
         { text: "Nivel de carga (SOC %)", left: 64, top: 0, textStyle: panelTitle },
-        { text: "Potencia (W):  ↑ entra · carga     ↓ sale · consumo", left: 64, top: "48%", textStyle: panelTitle }
+        { text: "Potencia (W):  ↑ entra · carga     ↓ sale · consumo", left: 64, top: "42%", textStyle: panelTitle }
       ],
-      grid: [{ left: 64, right: 12, top: 24, height: "30%" }, { left: 64, right: 12, top: "57%", bottom: 26 }],
+      grid: [{ left: 64, right: 46, top: 24, height: "30%" }, { left: 64, right: 46, top: "47%", bottom: 64 }],
+      // Zoom como en un editor de vídeo: pellizcar o la rueda amplían; arrastrar mueve; abajo, la barra con asas.
+      dataZoom: [
+        { type: "inside", xAxisIndex: [0, 1], filterMode: "none", minValueSpan: 20 * 60000, zoomOnMouseWheel: true,
+          moveOnMouseMove: true, moveOnMouseWheel: false, preventDefaultMouseMove: false },
+        { type: "slider", xAxisIndex: [0, 1], filterMode: "none", minValueSpan: 20 * 60000, height: 22, bottom: 8, left: 64, right: 46,
+          borderColor: grid, backgroundColor: "transparent", fillerColor: "color-mix(in srgb, " + accent + " 18%, transparent)",
+          handleStyle: { color: accent, borderColor: accent }, moveHandleStyle: { color: accent, opacity: 0.5 },
+          emphasis: { handleStyle: { color: accent }, moveHandleStyle: { color: accent } },
+          dataBackground: { lineStyle: { color: muted, opacity: 0.5 }, areaStyle: { color: muted, opacity: 0.12 } },
+          selectedDataBackground: { lineStyle: { color: COLOR_SOC }, areaStyle: { color: COLOR_SOC, opacity: 0.2 } },
+          textStyle: { color: muted, fontSize: 10 }, labelFormatter: function (v) { return fmtClock(new Date(v)); },
+          brushSelect: false }
+      ].map(function (z) { if (zr) { z.startValue = zr.a; z.endValue = zr.b; } return z; }),
       xAxis: [
         { type: "time", gridIndex: 0, min: from, max: now, axisLabel: { show: false }, axisTick: { show: false },
-          axisLine: { lineStyle: { color: grid } }, splitLine: { show: false } },
-        { type: "time", gridIndex: 1, min: from, max: now, axisLabel: { color: muted, formatter: "{HH}:{mm}", hideOverlap: true },
-          axisLine: { lineStyle: { color: grid } }, splitLine: { show: false } }
+          axisLine: { lineStyle: { color: grid } }, splitLine: { show: true, lineStyle: { color: grid, type: "dashed", opacity: 0.6 } } },
+        { type: "time", gridIndex: 1, min: from, max: now, splitNumber: 12,
+          axisLabel: { color: muted, formatter: "{HH}:{mm}", hideOverlap: true },
+          axisTick: { show: true, length: 5, lineStyle: { color: muted, opacity: 0.6 } },
+          minorTick: { show: true, splitNumber: 4, length: 3, lineStyle: { color: muted, opacity: 0.35 } },
+          axisLine: { lineStyle: { color: grid } }, splitLine: { show: true, lineStyle: { color: grid, type: "dashed", opacity: 0.6 } } },
+        { type: "time", gridIndex: 1, min: from, max: now, show: false }
       ],
       yAxis: [
         { type: "value", gridIndex: 0, min: 0, max: 100, interval: 25, axisLabel: { color: muted, formatter: "{value} %" },
           splitLine: { lineStyle: { color: grid } } },
-        { type: "value", gridIndex: 1, axisLabel: { color: muted, formatter: "{value} W" }, splitLine: { lineStyle: { color: grid } } }
+        { type: "value", gridIndex: 1, axisLabel: { color: muted, formatter: "{value} W" }, splitLine: { lineStyle: { color: grid } } },
+        { type: "value", gridIndex: 1, min: 0, max: 1, show: false }
       ],
       // Potencia en dos series (carga ≥ 0 en azul, consumo ≤ 0 en ámbar). Antes se coloreaba con visualMap,
       // pero en esta versión de ECharts falla con varios paneles ("reading 'coord'") y no se dibujaba nada.
       series: [
-        { name: "SOC", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: soc, showSymbol: false, connectNulls: false,
+        { name: "SOC", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: soc, showSymbol: false, connectNulls: false, animation: false,
+          // Valor actual al final de la línea.
+          endLabel: { show: !!liveOk, formatter: function (p) { return Math.round(p.value[1]) + " %"; }, color: COLOR_SOC,
+            fontWeight: 800, fontSize: 12, fontFamily: "Nunito, system-ui, sans-serif", distance: 6 },
           lineStyle: Object.assign({ width: 2, color: COLOR_SOC, shadowColor: COLOR_SOC }, glow), itemStyle: { color: COLOR_SOC },
           // Área verde con degradado (más intensa arriba), como la del consumo.
           areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: "rgba(22,163,74," + (theme.neon ? 0.55 : 0.45) + ")" }, { offset: 1, color: "rgba(22,163,74,0.05)" }]) } },
-        { name: "Carga", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false,
+        { name: "Carga", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false, animation: false,
           data: pw.map(function (d) { return [d[0], d[1] == null ? null : Math.max(0, d[1])]; }),
           lineStyle: Object.assign({ width: 2, color: COLOR_CHARGE, shadowColor: COLOR_CHARGE }, glow),
           itemStyle: { color: COLOR_CHARGE }, areaStyle: { color: COLOR_CHARGE, opacity: theme.neon ? 0.35 : 0.25 } },
-        { name: "Consumo", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false,
+        { name: "Consumo", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, connectNulls: false, animation: false,
           data: pw.map(function (d) { return [d[0], d[1] == null ? null : Math.min(0, d[1])]; }),
           lineStyle: Object.assign({ width: 2, color: COLOR_DISCHARGE, shadowColor: COLOR_DISCHARGE }, glow),
           itemStyle: { color: COLOR_DISCHARGE }, areaStyle: { color: COLOR_DISCHARGE, opacity: theme.neon ? 0.35 : 0.25 } },
         // Línea del cero (separa carga y consumo). Como serie simple: markLine fallaba con varios paneles.
         { name: "cero", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: [[from, 0], [now, 0]], silent: true, symbol: "none",
-          lineStyle: { color: muted, width: 1, opacity: 0.6 }, tooltip: { show: false }, z: 1 }
+          lineStyle: { color: muted, width: 1, opacity: 0.6 }, tooltip: { show: false }, z: 1, animation: false },
+        // Franjas de noche, detrás de todo (arriba con el eje del SOC; abajo con un eje oculto de 0 a 1).
+        { name: "noche", type: "line", xAxisIndex: 0, yAxisIndex: 0, step: "end", silent: true, symbol: "none", z: 0, animation: false,
+          data: night.map(function (n) { return [n[0], n[1] ? 100 : null]; }), lineStyle: { width: 0 }, areaStyle: nightArea, tooltip: { show: false } },
+        { name: "noche2", type: "line", xAxisIndex: 2, yAxisIndex: 2, step: "end", silent: true, symbol: "none", z: 0, animation: false,
+          data: night, lineStyle: { width: 0 }, areaStyle: nightArea, tooltip: { show: false } },
+        // "Ahora": un punto que late al final de cada línea (solo con datos de hace menos de 5 min).
+        { name: "ahora", type: "effectScatter", xAxisIndex: 0, yAxisIndex: 0, data: liveOk ? [lastSoc] : [], symbolSize: 7,
+          rippleEffect: { period: 2.6, scale: 3.2, brushType: "fill" }, itemStyle: { color: COLOR_SOC }, silent: true, tooltip: { show: false }, z: 5 },
+        { name: "ahora2", type: "effectScatter", xAxisIndex: 1, yAxisIndex: 1, data: liveOk && lastPw ? [lastPw] : [], symbolSize: 7,
+          rippleEffect: { period: 2.6, scale: 3.2, brushType: "fill" }, silent: true, tooltip: { show: false }, z: 5,
+          itemStyle: { color: lastPw && lastPw[1] >= 0 ? COLOR_CHARGE : COLOR_DISCHARGE } }
       ]
     }, true);
   }
