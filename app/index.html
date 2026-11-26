@@ -26,7 +26,6 @@
   body.neon .card:not(.settings), body.neon .status { box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 22%, transparent),
     0 0 18px -6px color-mix(in srgb, var(--acc) 45%, transparent); }
   body.neon header h1 { text-shadow: 0 0 12px color-mix(in srgb, var(--acc) 50%, transparent); }
-  body.neon #arc { filter: drop-shadow(0 0 6px currentColor); }
   body:not(.neon) .eta .big { text-shadow: 0 2px 8px rgba(0,0,0,.55); }
   /* ---- Alto contraste: SIN bordes marcados. Las tarjetas se separan del fondo por el tono: applyTheme()
      oscurece el fondo y aclara tarjetas y casillas a partir de la paleta elegida. Textos más claros. ---- */
@@ -332,14 +331,50 @@
   .hero .soc { min-height: 252px; }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
-  .soc { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring { position: relative; width: 196px; height: 196px; }
-  .ring svg { width: 100%; height: 100%; }
-  .ring svg { transform: rotate(-90deg); }
+  .soc { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+  .soc h2 { margin: 0 0 8px; justify-content: center; } /* centrado arriba, como el título de los KPIs */
+  .ring { position: relative; width: 176px; height: 176px; }
+  .ring svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; } /* que el brillo del neón no se corte en un cuadrado */
   .ring .val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring .val b { font-size: 50px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .ring .val span { font-size: 14px; }
-  .ring .val span { color: var(--muted); font-size: 12px; }
+  .ring .val b { font-size: 50px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .ring .val b small { font-size: 22px; font-weight: 800; margin-left: 2px; opacity: .8; }
+  .ring .val span { color: var(--text); font-size: 13px; margin-top: 4px; opacity: .85; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .ring .val b { text-shadow: 0 2px 6px rgba(0,0,0,.45); }
+  /* Agua dentro del anillo: el nivel es el SOC. Olas siempre (lentas al descargar), burbujas que suben al cargar.
+     Color según el nivel (verde/ámbar/rojo) o azul cargando. Es otro SVG, sin girar, debajo del anillo. */
+  .liquid { color: var(--good); }
+  .soc[data-st="warn"] .liquid, .soc[data-st="warn"] .glass { color: var(--warn); }
+  .soc[data-st="bad"] .liquid, .soc[data-st="bad"] .glass { color: var(--bad); }
+  .soc[data-st="charge"] .liquid, .soc[data-st="charge"] .glass { color: var(--charge); }
+  .liquid .level { transition: transform 1.2s cubic-bezier(.3,.7,.3,1); }
+  .liquid .wave { fill: currentColor; }
+  .liquid .w1 { opacity: .42; animation: wave 6s linear infinite; }
+  .liquid .w2 { opacity: .22; animation: wave 9s linear infinite reverse; }
+  .soc[data-st="charge"] .liquid .w1 { animation-duration: 3.2s; }
+  .soc[data-st="charge"] .liquid .w2 { animation-duration: 4.8s; }
+  @keyframes wave { from { transform: translateX(0); } to { transform: translateX(-120px); } }
+  .liquid .bubbles circle { fill: #fff; opacity: 0; }
+  .soc[data-st="charge"] .liquid .bubbles circle { animation: bubble 2.6s ease-in infinite; }
+  .liquid .bubbles circle:nth-child(2) { animation-delay: .9s !important; }
+  .liquid .bubbles circle:nth-child(3) { animation-delay: 1.7s !important; }
+  .liquid .bubbles circle:nth-child(4) { animation-delay: 2.2s !important; }
+  @keyframes bubble { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .55; } 100% { transform: translateY(-70px); opacity: 0; } }
+  /* Depósito de cristal: el agua es el único indicador; el aro es solo el borde (no se vacía). */
+  .glass { color: var(--good); }
+  /* Con neón, el número del SOC brilla del color del agua (no del acento), y sin neón conserva su sombra. */
+  .soc { --st: var(--good); }
+  .soc[data-st="warn"] { --st: var(--warn); } .soc[data-st="bad"] { --st: var(--bad); } .soc[data-st="charge"] { --st: var(--charge); }
+  body.neon .soc .ring .val b { text-shadow: 0 2px 6px rgba(0,0,0,.45), 0 0 10px color-mix(in srgb, var(--st) 60%, transparent); }
+  .liquid .glassFill { fill: color-mix(in srgb, var(--text) 4%, transparent); }
+  .glass .rim { fill: none; stroke: currentColor; stroke-width: 3; opacity: .9; transition: stroke .6s; }
+  body.neon .glass .rim { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 10px currentColor); }
+  .glass .shine { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; opacity: .28; }
+  .glass .shine2 { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; opacity: .16; }
+  @media (prefers-reduced-motion: reduce) { .liquid .w1, .liquid .w2, .liquid .bubbles circle { animation: none !important; } }
+  /* Números grandes con letra redondeada (Nunito, incluida en la app: funciona sin internet) */
+  @font-face { font-family: "Nunito"; font-weight: 700; font-display: swap; src: url("fonts/nunito-latin-700-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Nunito"; font-weight: 800; font-display: swap; src: url("fonts/nunito-latin-800-normal.woff2") format("woff2"); }
+  .ring .val b, .eta .big, .tile b, .cell b, .apps .appItem b { font-family: "Nunito", system-ui, sans-serif; }
   .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .tile { background: var(--tile); border-radius: 10px; padding: 10px 12px; }
   .tile label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
@@ -681,14 +716,26 @@
 </div>
 
 <div class="hero">
-  <div class="card soc">
+  <div class="card soc" id="socCard">
+    <h2>Carga restante</h2>
     <div class="ring">
-      <svg width="140" height="140" viewBox="0 0 140 140">
-        <circle cx="70" cy="70" r="60" fill="none" stroke="var(--line)" stroke-width="12"/>
-        <circle id="arc" cx="70" cy="70" r="60" fill="none" stroke="var(--good)" stroke-width="12"
-          stroke-linecap="round" stroke-dasharray="377" stroke-dashoffset="377"/>
+      <svg class="liquid" viewBox="0 0 140 140" aria-hidden="true">
+        <defs><clipPath id="inner"><circle cx="70" cy="70" r="57"/></clipPath></defs>
+        <circle class="glassFill" cx="70" cy="70" r="57"/>
+        <g clip-path="url(#inner)">
+          <g class="level" id="liqLevel" style="transform: translateY(128px)">
+            <path class="wave w2" d="M0 4 C 15 -2, 45 -2, 60 4 S 105 10, 120 4 S 165 -2, 180 4 S 225 10, 240 4 S 285 -2, 300 4 V 140 H 0 Z"/>
+            <path class="wave w1" d="M0 4 C 15 10, 45 10, 60 4 S 105 -2, 120 4 S 165 10, 180 4 S 225 -2, 240 4 S 285 10, 300 4 V 140 H 0 Z"/>
+            <g class="bubbles"><circle cx="52" cy="60" r="2.2"/><circle cx="76" cy="66" r="1.6"/><circle cx="92" cy="58" r="2"/><circle cx="64" cy="70" r="1.4"/></g>
+          </g>
+        </g>
       </svg>
-      <div class="val"><b id="soc">--</b><span>SOC %</span></div>
+      <svg class="glass" viewBox="0 0 140 140" aria-hidden="true">
+        <circle class="rim" cx="70" cy="70" r="59"/>
+        <path class="shine" d="M 27 52 A 46 46 0 0 1 52 25"/>
+        <path class="shine2" d="M 24 64 A 47 47 0 0 1 25.5 57"/>
+      </svg>
+      <div class="val"><b id="soc">--</b><span id="socSub">SOC</span></div>
     </div>
   </div>
   <div class="card tiles">
@@ -1304,8 +1351,7 @@
     last = { basic: null, cells: null };
     samples = [];
     serials = {};
-    $("soc").textContent = "--";
-    $("arc").setAttribute("stroke-dashoffset", "377");
+    renderSoc(null);
     ["power", "current", "voltage", "remaining"].forEach(function (id, i) {
       setVal(id, "--", ["W", "A", "V", "Ah"][i]);
     });
@@ -1408,6 +1454,48 @@
     if (b && hasBridge) { setCurrentBms(found[b.dataset.addr] || { address: b.dataset.addr }); window.Android.connectTo(b.dataset.addr); }
   });
 
+  // ---------------------------------------------------------------- tarjeta "Carga restante"
+  // Depósito de cristal con agua al nivel del SOC + número que cuenta hasta el valor (de 0 al conectar).
+  var socShown = null, socAnim = 0;
+  function renderSoc(pct, b) {
+    var card = $("socCard");
+    if (pct == null) {
+      cancelAnimationFrame(socAnim); socShown = null;
+      $("soc").textContent = "--"; $("socSub").textContent = "SOC";
+      $("liqLevel").style.transform = "translateY(128px)"; delete card.dataset.st;
+      return;
+    }
+    var charging = b && b.currentA >= IDLE_A;
+    card.dataset.st = charging ? "charge" : pct <= settingsCache.socCritical ? "bad" : pct <= settingsCache.socWarn ? "warn" : "good";
+    // Agua: del fondo del depósito (y = 127) a arriba (y = 13); las olas miden ±3, así que al 100 % queda lleno.
+    $("liqLevel").style.transform = "translateY(" + (127 - pct * 1.14).toFixed(1) + "px)";
+    if (b) $("socSub").textContent = "≈ " + fmt(b.remainingAh * b.voltageV / 1000, 1) + " kWh";
+    countSoc(pct);
+  }
+  function countSoc(to) {
+    var from = socShown == null ? 0 : socShown;
+    socShown = to;
+    cancelAnimationFrame(socAnim);
+    if (from === to || reducedMotion()) { $("soc").innerHTML = to + "<small>%</small>"; return; }
+    var t0 = performance.now(), dur = Math.min(1400, 350 + Math.abs(to - from) * 14);
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); // frena al final
+      $("soc").innerHTML = Math.round(from + (to - from) * e) + "<small>%</small>";
+      if (k < 1) socAnim = requestAnimationFrame(step);
+    })(t0);
+  }
+
+  // Prueba de diseño en el navegador: ?demo&soc=82c (82 %, cargando) · ?demo&soc=18 (18 %, descargando)
+  (function () {
+    var m = /[?&]soc=(\d{1,3})(c?)/.exec(location.search);
+    if (!m) return;
+    var pct = Math.min(100, +m[1]), chg = !!m[2];
+    setInterval(function () {
+      window.bms({ type: "basic", soc: pct, voltageV: chg ? 27.6 : 26.1, currentA: chg ? 31 : -8, remainingAh: 2.8 * pct,
+        fullAh: 280, designAh: 280, soh: 100, cycles: 213, tempMosC: 30, tempAmbientC: 30 });
+    }, 4000);
+  })();
+
   function renderBasic(b) {
     last.basic = b;
     pushTrend(b);
@@ -1415,9 +1503,7 @@
     updateBattery(last.cells ? last.cells.mv.length : cellsFromVoltage(b.voltageV), b.designAh || b.fullAh);
     document.body.classList.remove("stale");
     var socPct = Math.max(0, Math.min(100, b.soc));
-    $("soc").textContent = socPct;
-    $("arc").setAttribute("stroke-dashoffset", String(377 * (1 - socPct / 100)));
-    $("arc").setAttribute("stroke", socPct <= 20 ? "var(--bad)" : socPct <= 35 ? "var(--warn)" : "var(--good)");
+    renderSoc(socPct, b);
     var w = b.voltageV * b.currentA;
     setVal("power", fmt(Math.abs(w), 0), "W");
     // Corriente negativa = descarga (la casa consume de la batería); positiva = carga (sol o red).
