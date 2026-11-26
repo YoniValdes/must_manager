@@ -621,6 +621,30 @@
 </div>
 </div>
 
+<div class="modal" id="shotCard" hidden>
+<div class="card settings about panel" role="dialog" aria-modal="true" aria-labelledby="shotTitle">
+  <button class="icon close" id="shClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">📸</div>
+  <div class="newsVer" id="shotTitle">Compartir captura</div>
+  <div class="newsSub">Una foto de la app para enviarla por WhatsApp, Telegram…</div>
+  <div class="set">
+    <div class="fieldsTitle">Calidad</div>
+    <label class="row"><input type="radio" name="sQ" value="alta"><span>Alta <b>· la más nítida</b>
+      <span class="sub" id="sQalta"><br>Resolución completa de la pantalla. Es la que más datos gasta.</span></span></label>
+    <label class="row"><input type="radio" name="sQ" value="media" checked><span>Media <b>· recomendada</b>
+      <span class="sub" id="sQmedia"><br>Se lee bien en cualquier móvil y pesa bastante menos.</span></span></label>
+    <label class="row"><input type="radio" name="sQ" value="baja"><span>Baja <b>· ahorra datos</b>
+      <span class="sub" id="sQbaja"><br>La más ligera, para cuando los datos están caros o la conexión va lenta.</span></span></label>
+    <div class="fieldsTitle">Imágenes</div>
+    <label class="row"><input type="radio" name="sParts" value="1" checked><span>Toda la app en una imagen
+      <span class="sub"><br>Una imagen larga, de arriba abajo.</span></span></label>
+    <label class="row"><input type="radio" name="sParts" value="3"><span>En 3 partes
+      <span class="sub"><br>Autonomía y batería · la noche y la gráfica · celdas y estado. Se ven más grandes en el móvil.</span></span></label>
+  </div>
+  <div class="btns"><button id="sGo" class="aboutOk">📤 Compartir</button><button class="secondary aboutOk" id="shOk">Cerrar</button></div>
+</div>
+</div>
+
 <div class="modal" id="exportCard" hidden>
 <div class="card settings about panel" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
   <button class="icon close" id="eClose" aria-label="Cerrar">✕</button>
@@ -882,7 +906,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
-<script src="changelog.js?v=13"></script>
+<script src="changelog.js?v=14"></script>
 <script>
 (function () {
   "use strict";
@@ -2379,6 +2403,7 @@
     else if (open_("newsCard")) closeNews(); else if (open_("meterCard")) closeMeter();
     else if (open_("appsCard")) closeApps(); else if (open_("themeCard")) closeTheme();
     else if (open_("settingsCard")) closeSettings(); else if (open_("exportCard")) closeExport();
+    else if (open_("shotCard")) closeShot();
     else if (open_("aboutCard")) closeAbout();
     else if (document.querySelector(".modal.closing")) return true; // dos toques rápidos: no salir de la app
     else return false;
@@ -2850,7 +2875,7 @@
 
   function togglePanel(cardId, btnId, force) {
     var cur = $(cardId), open = typeof force === "boolean" ? force : (cur.hidden || cur.classList.contains("closing"));
-    [["appsCard", "appsBtn"], ["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["settingsCard", "bell"], ["aboutCard", "aboutBtn"]].forEach(function (p) {
+    [["appsCard", "appsBtn"], ["themeCard", "themeBtn"], ["exportCard", "exportBtn"], ["shotCard", "shotBtn"], ["settingsCard", "bell"], ["aboutCard", "aboutBtn"]].forEach(function (p) {
       if (isModalId(p[0])) { if (p[0] !== cardId || !open) hideModal($(p[0])); }
       else $(p[0]).hidden = true;
       $(p[1]).setAttribute("aria-expanded", "false");
@@ -2902,16 +2927,34 @@
   } else {
     $("exportBtn").hidden = true;
   }
-  // Compartir una captura de la app entera (solo APK: la hace Java, Screenshot.java, a buena resolución).
-  if (hasBridge && window.Android && Android.shareScreenshot) {
-    $("shotBtn").addEventListener("click", function () {
-      closeHelp();
-      this.blur();
-      setTimeout(function () { Android.shareScreenshot(); }, 250); // que se cierre antes el globo de ayuda
-    });
-  } else {
-    $("shotBtn").hidden = true;
+  // Compartir una captura de la app entera (solo APK: la hace Java, Screenshot.java). La ventana deja elegir
+  // la calidad (en Cuba los datos móviles son caros) y si va en una imagen o en 3 partes, cortando entre tarjetas.
+  function closeShot() { togglePanel("shotCard", "shotBtn", false); }
+  function shotPick(name) { var r = document.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : ""; }
+  (function () { // recordar la última elección (solo en este dispositivo)
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem("mm-shot") || "null"); } catch (e) {}
+    if (!saved) return;
+    var q = document.querySelector('input[name="sQ"][value="' + saved.q + '"]'), n = document.querySelector('input[name="sParts"][value="' + saved.parts + '"]');
+    if (q) q.checked = true; if (n) n.checked = true;
+  })();
+  function shotCuts() { // dónde cortar en 3 partes: en el hueco justo encima de "Esta noche" y de "Celdas" (px de la página)
+    return [$("nightCard"), $("cellsCard")].map(function (el) { return Math.round(el.getBoundingClientRect().top + window.scrollY - 7); });
   }
+  $("shotBtn").addEventListener("click", function () { closeHelp(); togglePanel("shotCard", "shotBtn"); });
+  $("shClose").addEventListener("click", closeShot);
+  $("shOk").addEventListener("click", closeShot);
+  $("shotCard").addEventListener("click", function (e) { if (e.target === this) closeShot(); });
+  $("sGo").addEventListener("click", function () {
+    var opts = { q: shotPick("sQ"), parts: shotPick("sParts") };
+    try { localStorage.setItem("mm-shot", JSON.stringify(opts)); } catch (e) {}
+    var send = { q: opts.q, cuts: opts.parts === "3" ? shotCuts() : [] };
+    closeShot();
+    // Esperar a que la ventana termine de cerrarse: si no, saldría en la captura.
+    setTimeout(function () { if (window.Android && Android.shareScreenshot) Android.shareScreenshot(JSON.stringify(send)); }, modalCloseMs() + 80);
+  });
+  if (!(hasBridge && window.Android && Android.shareScreenshot)) $("shotBtn").hidden = true;
+  if (/[?&]panel=compartir/.test(location.search)) setTimeout(function () { togglePanel("shotCard", "shotBtn", true); }, 0);
 
   // index.html?demo: carga directamente los datos de ejemplo (para revisar el diseño en el navegador).
   if (!hasBridge && /[?&]demo/.test(location.search)) demo();

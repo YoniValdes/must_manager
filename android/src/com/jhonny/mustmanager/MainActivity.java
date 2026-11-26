@@ -310,13 +310,13 @@ public class MainActivity extends Activity implements BmsClient.Listener, Update
             }, "exportar").start();
         }
 
-        /** Botón de compartir de la cabecera: captura de la app entera y menú de compartir. */
+        /** Ventana "Compartir captura": opts = {q:"alta"|"media"|"baja", cuts:[px CSS]} (ver Screenshot). */
         @JavascriptInterface
-        public void shareScreenshot() {
+        public void shareScreenshot(final String opts) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    Screenshot.share(MainActivity.this, web);
+                    Screenshot.share(MainActivity.this, web, opts);
                 }
             });
         }
