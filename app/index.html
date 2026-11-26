@@ -1655,7 +1655,9 @@
     else { start = at(-1, SUNSET); end = sunriseToday; title = "Anoche"; }
     var night = rows.filter(function (r) { return r[0] >= start && r[0] < end; });
     $("nightTitle").textContent = title;
-    $("nightRange").textContent = fmtClock(new Date(start)) + " – " + (end === now ? "ahora" : fmtClock(new Date(end)));
+    // Qué es esa hora: el anochecer (y, si ya pasó la noche, el amanecer).
+    $("nightRange").textContent = end === now ? "desde el anochecer · " + fmtClock(new Date(start))
+      : fmtClock(new Date(start)) + " → " + fmtClock(new Date(end)) + " (anochecer → amanecer)";
 
     var nightEnd = now < sunriseToday ? sunriseToday : at(1, SUNRISE); // amanecer que cierra esta noche
     if (title === "Anoche") nightEnd = sunriseToday;
@@ -1674,14 +1676,22 @@
       var peak = night.reduce(function (p, r) { return r[6] < p.w ? { w: r[6], t: r[0] } : p; }, { w: 0, t: 0 });
       // Energía disponible al anochecer hasta el corte (capacidad de diseño × voltaje nominal).
       var soc0 = night[0][1], availKwh = Math.max(0.1, (soc0 - CUTOFF_SOC) / 100 * BATTERY_KWH);
-      var usedKwh = disWh / 1000;
-      // ¿Vas al ritmo? Proporción gastada frente a proporción de noche transcurrida.
-      var elapsed = Math.max(0.02, Math.min(1, (Math.min(end, nightEnd) - start) / (nightEnd - start)));
-      var usedFrac = usedKwh / availKwh;
-      var paceSt = usedFrac <= elapsed ? "good" : usedFrac <= elapsed * 1.15 ? "warn" : "bad";
-      gauge("gKwh", usedKwh, availKwh, "kWh", 2, paceSt);
-      $("nSoc").textContent = "de " + fmt(availKwh, 1) + " kWh · " + (paceSt === "good" ? "vas bien de ritmo" :
-        paceSt === "warn" ? "vas justo" : "vas por delante de la noche");
+      var usedKwh = disWh / 1000, avgW0 = disMinutes ? disWh / (disMinutes / 60) : 0;
+      // El COLOR sigue la previsión del SOC al amanecer (no el ritmo de gasto, que daba rojo casi todas las
+      // noches a primera hora): verde si llegas, ámbar si llegas justo (corte + 10), rojo solo si no llegas.
+      var socNow = night[night.length - 1][1], socDawn, dawnTxt;
+      if (title === "Anoche") {
+        socDawn = socNow;
+        dawnTxt = "de " + fmt(availKwh, 1) + " kWh · amaneciste con " + fmt(socDawn, 0) + " %";
+      } else {
+        var hoursLeft = Math.max(0, (nightEnd - now) / HOUR);
+        socDawn = socNow - (avgW0 * hoursLeft) / (BATTERY_KWH * 1000) * 100;
+        dawnTxt = "de " + fmt(availKwh, 1) + " kWh · " + (!disMinutes ? "aún sin consumo" : socDawn >= CUTOFF_SOC
+          ? "amaneces con ≈ " + fmt(socDawn, 0) + " %"
+          : "no llegas: corte a las " + fmtClock(new Date(now + Math.max(0, socNow - CUTOFF_SOC) / 100 * BATTERY_KWH * 1000 / avgW0 * HOUR)));
+      }
+      gauge("gKwh", usedKwh, availKwh, "kWh", 2, socDawn < CUTOFF_SOC ? "bad" : socDawn < CUTOFF_SOC + 10 ? "warn" : "good");
+      $("nSoc").textContent = dawnTxt;
 
       // Consumo medio frente al límite para llegar al amanecer desde el anochecer.
       var avgW = disMinutes ? disWh / (disMinutes / 60) : 0, limitW = availKwh * 1000 / nightHours;
@@ -1754,6 +1764,7 @@
         pointer: { show: false }, axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
         anchor: { show: false }, title: { show: false },
         detail: { offsetCenter: [0, -Math.round(geo.r * 0.26)], fontSize: geo.font, fontWeight: 800, color: css.getPropertyValue("--text").trim(),
+          fontFamily: "Nunito, system-ui, sans-serif",
           formatter: function () { return value == null ? "--" : fmt(value, decimals) + "{u| " + unit + "}"; },
           rich: { u: { fontSize: geo.unit, fontWeight: 600, color: css.getPropertyValue("--muted").trim() } } },
         data: [{ value: shown }]
