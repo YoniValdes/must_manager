@@ -1,0 +1,73 @@
+# Compila la APK firmada en los servidores de GitHub, con el mismo android/build.ps1 que en el PC.
+# Se lanza a mano: pestaña Actions → "Compilar APK" → Run workflow (elige la rama: main o apagon).
+# La APK sale como "artifact" (zip descargable) en la página de esa ejecución, durante 30 días.
+#
+# La llave de firma viene de dos secrets cifrados del repo (Settings → Secrets and variables → Actions):
+#   KEYSTORE_B64       = secretos\mustmanager.keystore en base64
+#   KEYSTORE_PASSWORD  = contenido de secretos\firma.txt
+# GitHub no pasa los secrets a los Pull Requests que vienen de forks, y este workflow no se ejecuta en PRs.
+name: Compilar APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Herramientas de Android (build-tools 35 y android-34)
+        shell: pwsh
+        run: |
+          $sdk = $env:ANDROID_HOME
+          if (-not (Test-Path "$sdk\build-tools\35.0.0\aapt2.exe") -or -not (Test-Path "$sdk\platforms\android-34\android.jar")) {
+            "y`ny`ny`ny`ny`n" | & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "build-tools;35.0.0" "platforms;android-34" | Out-Null
+          }
+          Test-Path "$sdk\build-tools\35.0.0\aapt2.exe"
+          Test-Path "$sdk\platforms\android-34\android.jar"
+
+      - name: Llave de firma (desde los secrets)
+        shell: pwsh
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          # Sin llave, build.ps1 crearía una nueva y esa APK no podría actualizar la app instalada: se para aquí.
+          if (-not $env:KEYSTORE_B64 -or -not $env:KEYSTORE_PASSWORD) {
+            throw "Faltan los secrets KEYSTORE_B64 y KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions)."
+          }
+          New-Item -ItemType Directory -Force secretos | Out-Null
+          [IO.File]::WriteAllBytes("$PWD\secretos\mustmanager.keystore", [Convert]::FromBase64String($env:KEYSTORE_B64))
+          Set-Content -Path secretos\firma.txt -Value $env:KEYSTORE_PASSWORD -NoNewline
+
+      - name: Compilar (android/build.ps1)
+        shell: pwsh
+        run: .\android\build.ps1
+
+      - name: Comprobar que la firma es la de siempre
+        shell: pwsh
+        run: |
+          $apk = Get-ChildItem dist\*.apk | Select-Object -First 1
+          & "$env:ANDROID_HOME\build-tools\35.0.0\apksigner.bat" verify --print-certs $apk.FullName | Select-String "SHA-256"
+
+      - name: Borrar la llave del servidor
+        if: always()
+        shell: pwsh
+        run: Remove-Item -Recurse -Force secretos -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MustManager-${{ github.ref_name }}-${{ github.run_number }}
+          path: dist/*.apk
+          retention-days: 30
+          if-no-files-found: error
