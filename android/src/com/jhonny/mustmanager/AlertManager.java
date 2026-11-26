@@ -31,8 +31,8 @@ final class AlertManager {
 
     // Detección de la red: cuánto tiene que durar la condición y con qué potencia (W, media de 1 min).
     private static final long GRID_CONFIRM_MS = MIN;
-    private static final double GRID_ON_NIGHT_W = 150;   // de noche cualquier carga real es la red
-    private static final double GRID_ON_DAY_MARGIN = 1.03; // de día, algo más de lo que pueden dar los paneles
+    static final double GRID_ON_NIGHT_W = 150;   // de noche cualquier carga real es la red
+    static final double GRID_ON_DAY_MARGIN = 1.03; // de día, algo más de lo que pueden dar los paneles
     private static final double GRID_OFF_W = -100;       // la batería vuelve a descargar → se fue la red
     private static final long CONN_LOST_MS = 5 * MIN;
 
@@ -47,8 +47,10 @@ final class AlertManager {
 
     private boolean socWarned, socCriticalWarned;
     private boolean gridOn;
-    private long gridSince, gridCondSince;
+    private long gridSince, gridCondSince, dischargeSince;
     private int gridSoc0;
+    /** Horas del apagón guardadas (sobreviven a cerrar la app); de aquí sale también gridOn al arrancar. */
+    private final GridWatch grid;
     private boolean sunriseAlerted;
     private long sunriseAlertAt, sunriseReachAlerted;
     private boolean connPending, connAlerted;
@@ -57,6 +59,11 @@ final class AlertManager {
         this.ctx = ctx;
         this.nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         this.alarm = new AlarmPlayer(ctx);
+        this.grid = new GridWatch(ctx);
+        grid.recoverFromHistory(System.currentTimeMillis()); // recién instalada: lo que diga la gráfica
+        gridOn = grid.gridOn();
+        gridSince = grid.onSince();
+        gridSoc0 = grid.onSoc();
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "Alertas de la batería", NotificationManager.IMPORTANCE_HIGH);
             ch.setDescription("Batería baja, llegada y corte de la corriente, previsión del amanecer y conexión");
@@ -69,12 +76,18 @@ final class AlertManager {
     void onReading(BmsProtocol.Basic b) {
         long now = System.currentTimeMillis();
         Settings s = Settings.load(ctx);
+        // Tras un hueco sin lecturas, lo que se estaba confirmando antes ya no vale.
+        if (!window.isEmpty() && now - window.peekLast()[0] > GridWatch.GAP_MS) {
+            gridCondSince = 0;
+            dischargeSince = 0;
+        }
         window.addLast(new double[]{now, b.currentA, b.voltageV * b.currentA});
         while (!window.isEmpty() && now - window.peekFirst()[0] > SUNRISE_AVG_MS) window.removeFirst();
 
         connectionOk();
         if (s.socAlerts) checkSoc(b, s);
-        if (s.gridAlerts) checkGrid(b, s, now);
+        grid.onReading(now, b.soc, b.currentA);
+        checkGrid(b, s, now, s.gridAlerts);
         if (s.sunriseAlerts) checkSunrise(b, s, now);
         else sunriseAlerted = false;
     }
@@ -100,6 +113,7 @@ final class AlertManager {
         stopAlarm();
         window.clear();
         gridCondSince = 0;
+        dischargeSince = 0;
     }
 
     void test() {
@@ -149,10 +163,21 @@ final class AlertManager {
 
     // ------------------------------------------------------------------ red eléctrica
 
-    private void checkGrid(BmsProtocol.Basic b, Settings s, long now) {
+    /**
+     * Detecta la llegada y el corte de la red siempre (el apagón de la pantalla y el widget lo necesitan);
+     * la notificación solo sale si el usuario tiene activada la alerta.
+     */
+    private void checkGrid(BmsProtocol.Basic b, Settings s, long now, boolean notify) {
         double[] avg = average(now, MIN);
         if (avg == null || avg[2] < 50000) return; // menos de ~1 min de datos
         double w = avg[1];
+        // Sin red conocida y descargando: si no se sabe nada de antes (recién instalada), apagón de hora desconocida.
+        if (!gridOn && w < GRID_OFF_W) {
+            if (dischargeSince == 0) dischargeSince = now;
+            if (now - dischargeSince >= GRID_CONFIRM_MS) grid.onDischarging(now);
+        } else {
+            dischargeSince = 0;
+        }
         boolean cond = gridOn ? w < GRID_OFF_W : w > (s.isNight(now) ? GRID_ON_NIGHT_W : s.panelsW * GRID_ON_DAY_MARGIN);
         if (!cond) {
             gridCondSince = 0;
@@ -160,15 +185,18 @@ final class AlertManager {
         }
         if (gridCondSince == 0) gridCondSince = now;
         if (now - gridCondSince < GRID_CONFIRM_MS) return;
+        long condStart = gridCondSince;
         gridCondSince = 0;
         if (!gridOn) {
             gridOn = true;
             gridSince = now - GRID_CONFIRM_MS;
             gridSoc0 = b.soc;
-            alert(ID_GRID, "⚡ Llegó la corriente", "Cargando a " + Math.round(w) + " W · SOC " + b.soc + " %");
+            grid.onGridOn(now, gridSince, b.soc);
+            if (notify) alert(ID_GRID, "⚡ Llegó la corriente", "Cargando a " + Math.round(w) + " W · SOC " + b.soc + " %");
         } else {
             gridOn = false;
-            alert(ID_GRID, "🔌 Se fue la corriente", "Estuvo " + duration(now - gridSince) + " · SOC " + gridSoc0
+            grid.onGridOff(now, condStart);
+            if (notify) alert(ID_GRID, "🔌 Se fue la corriente", "Estuvo " + duration(now - gridSince) + " · SOC " + gridSoc0
                 + " → " + b.soc + " %. Ahora consumiendo " + Math.round(-w) + " W de la batería.");
         }
     }

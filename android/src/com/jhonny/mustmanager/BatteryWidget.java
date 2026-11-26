@@ -19,6 +19,9 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.util.TypedValue;
 import android.widget.RemoteViews;
 import java.text.SimpleDateFormat;
@@ -166,7 +169,8 @@ public class BatteryWidget extends AppWidgetProvider {
         // Solo lo que se ve (la hora, por minutos): si no ha cambiado nada, no se molesta al launcher.
         SharedPreferences p = prefs(ctx);
         String key = p.getString("state", "") + "|" + p.getInt("soc", 0) + "|" + p.getString("power", "") + "|"
-            + p.getString("eta", "") + "|" + p.getString("line", "") + "|" + p.getInt("etaColor", 0) + "|" + (now / 60000);
+            + p.getString("eta", "") + "|" + p.getString("line", "") + "|" + p.getInt("etaColor", 0) + "|" + (now / 60000)
+            + "|" + ctx.getSharedPreferences("grid", Context.MODE_PRIVATE).getString("state", "");
         if (!force && key.equals(lastKey)) return;
         lastKey = key;
         lastPushAt = now;
@@ -239,8 +243,18 @@ public class BatteryWidget extends AppWidgetProvider {
         v.setTextViewText(R.id.w_time, time);
         v.setTextViewText(R.id.w_eta, p.getString("eta", "--"));
         v.setTextColor(R.id.w_eta, grey ? MUTED : p.getInt("etaColor", TEXT));
-        v.setTextViewText(R.id.w_line, "reconnecting".equals(state) ? "Reconectando con el BMS…"
-            : stale ? "Sin datos recientes · toca para abrir" : p.getString("line", ""));
+        CharSequence line = "reconnecting".equals(state) ? "Reconectando con el BMS…"
+            : stale ? "Sin datos recientes · toca para abrir" : p.getString("line", "");
+        // Apagón: segunda línea en rojo ("Sin corriente desde…") o en azul ("Volvió la corriente…").
+        Object[] gl = grey ? null : GridWatch.widgetLine(ctx, now);
+        if (gl != null) {
+            String extra = (String) gl[0];
+            SpannableString sp = new SpannableString(line + "\n" + extra);
+            sp.setSpan(new ForegroundColorSpan(((Integer) gl[1]) == 1 ? BAD : CHARGE), sp.length() - extra.length(), sp.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            line = sp;
+        }
+        v.setTextViewText(R.id.w_line, line);
         return v;
     }
 
