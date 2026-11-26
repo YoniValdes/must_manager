@@ -144,6 +144,9 @@
     border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); line-height: 1.3; }
   /* Todas las etiquetas con borde de neón: las neutras ("Calculando la media…", "incluye aporte solar") con el acento */
   .eta .chip { border-color: var(--acc); box-shadow: 0 0 10px -2px var(--acc); }
+  /* Torre eléctrica (corriente de la calle): pocos trazos para que se reconozca a tamaño de etiqueta */
+  .chip .tower { width: 1em; height: 1.35em; vertical-align: -.3em; fill: none; stroke: currentColor;
+    stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .eta .chip.verdict { border-color: var(--neon); box-shadow: 0 0 10px -2px var(--neon); }
   .eta .chip b { font-variant-numeric: tabular-nums; }
   /* Apagón: "Sin corriente desde las 14:32 · 5 h 12 min" (ámbar) o "Volvió la corriente…" (azul) */
@@ -883,7 +886,7 @@
   // {type:"grid", state:"out"|"back"|"on", since, lastSeen, back} (ms). lastSeen = última vez que se vio
   // corriente, solo si el apagón cayó con la app cerrada (entonces la hora exacta no se sabe).
   // state "unknown": hay apagón pero no hay ninguna lectura con corriente de antes → aviso en rojo.
-  // Prueba sin apagón real: ?apagon=14:32 · ?apagon=13:10-14:32 (con hueco) · ?apagon=14:32&volvio=19:44 · ?apagon=no
+  // Prueba sin apagón real (y con red: ?red=si): ?apagon=14:32 · ?apagon=13:10-14:32 (con hueco) · ?apagon=14:32&volvio=19:44 · ?apagon=no
   var grid = null;
   function gridWhen(t) {
     var d = new Date(t), today = new Date(), y = new Date(); y.setDate(y.getDate() - 1);
@@ -946,6 +949,7 @@
   }
   (function () {
     if (/[?&]apagon=no\b/.test(location.search)) { grid = { state: "unknown" }; setTimeout(renderGrid, 0); return; }
+    if (/[?&]red=si\b/.test(location.search)) { grid = { state: "on" }; return; } // prueba: con corriente de la calle
     var m = /[?&]apagon=(\d{1,2}:\d{2})(?:-(\d{1,2}:\d{2}))?/.exec(location.search);
     if (!m) return;
     function at(hm) { // HH:MM de hoy, o de ayer si aún no ha llegado esa hora
@@ -965,7 +969,11 @@
     return d;
   }
 
+  var TOWER_SVG = '<svg class="tower" viewBox="0 0 16 22" aria-hidden="true">' +
+    '<path d="M8 1 3 21M8 1l5 20M2 5h12M3.5 9h9M2 5v1.6M14 5v1.6M3.5 9v1.6M12.5 9v1.6' +
+    'M4.75 14h6.5M4.75 14 13 21M11.25 14 3 21"/></svg>';
   function isDaytime(now) {
+    if (SKY_TEST) now = new Date(new Date(now).setHours(+SKY_TEST[1], +SKY_TEST[2])); // prueba: ?hora=HH:MM
     var mins = now.getHours() * 60 + now.getMinutes();
     var r = SUNRISE.split(":"), s = SUNSET.split(":");
     return mins >= +r[0] * 60 + +r[1] && mins < +s[0] * 60 + +s[1];
@@ -1060,12 +1068,16 @@
     } else if (avgA >= IDLE_A) {
       var toFull = Math.max(0, b.fullAh - b.remainingAh) / avgA;
       eta.dataset.level = "charge";
-      // Si sabemos que no hay corriente de la calle (apagón), lo que carga solo puede ser el sol.
-      var noGrid = grid && (grid.state === "out" || grid.state === "unknown");
-      $("etaLabel").innerHTML = "Cargando <span>· " + (noGrid ? "con el sol" : "sol o red") + "</span>";
-      // Con apagón, la misma etiqueta del sol abajo: deja claro de dónde viene la carga.
-      $("etaSun").textContent = "☀️ carga solo con el sol";
-      $("etaSun").hidden = !noGrid;
+      // De dónde viene la carga. El BMS solo ve el neto, pero sabemos si es de día y si hay corriente de la calle:
+      // de noche solo puede ser la red; de día con apagón, solo el sol; de día con red, los dos.
+      // Si aún no sabemos si hay red (recién instalada, o en Chrome), "sol o red" como antes.
+      var gs = grid && grid.state, day = isDaytime(new Date(now));
+      var src = !day ? "grid" : (gs === "out" || gs === "unknown") ? "sun" : (gs === "on" || gs === "back") ? "both" : "";
+      $("etaLabel").innerHTML = "Cargando <span>· " +
+        ({ sun: "con el sol", both: "sol y red", grid: "con la red" }[src] || "sol o red") + "</span>";
+      $("etaSun").innerHTML = { sun: "☀️ carga solo con el sol", both: "☀️ " + TOWER_SVG + " carga con el sol y la red",
+        grid: TOWER_SVG + " carga con la red" }[src] || "";
+      $("etaSun").hidden = !src;
       $("etaBig").innerHTML = toFull > 0 ? fmtDuration(toFull) : "Llena";
       $("etaLine").innerHTML = toFull > 0 ? "Llena hacia las <b>" + fmtClock(new Date(now + toFull * 3600000)) + "</b>" : "La batería está llena";
       note = spanMin < 1 ? note : "Entrando " + fmt(avgW, 0) + " W";
