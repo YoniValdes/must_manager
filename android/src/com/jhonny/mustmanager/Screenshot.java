@@ -9,6 +9,8 @@ import android.graphics.Canvas;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.webkit.WebView;
@@ -72,23 +74,142 @@ final class Screenshot {
         }, 150);
     }
 
-    private static void capture(final Activity act, WebView web, int maxW, final int jpg, ArrayList<Integer> cutsCss, final boolean save) {
-        float density = act.getResources().getDisplayMetrics().density;
-        int w = web.getWidth();
-        int h = (int) Math.ceil(web.getContentHeight() * density);
+    private interface Done {
+        void run(Bitmap big);
+    }
+
+    /**
+     * Android 8+: se copia LO QUE SE VE en la pantalla (PixelCopy) bajando la página tramo a tramo y se unen
+     * los trozos. Redibujar la página entera aparte (enableSlowWholeDocumentDraw + draw) a veces dibujaba mal
+     * algún texto: el número de la autonomía salía diminuto y aplastado (26-nov-2026). Ese método queda solo
+     * de respaldo (Android 7 o páginas que no caben en memoria).
+     */
+    private static void capture(final Activity act, final WebView web, final int maxW, final int jpg,
+                                final ArrayList<Integer> cutsCss, final boolean save) {
+        final float density = act.getResources().getDisplayMetrics().density;
+        final int w = web.getWidth();
+        final int h = (int) Math.ceil(web.getContentHeight() * density);
         if (w <= 0 || h <= 0) {
             Toast.makeText(act, "No se pudo hacer la captura", Toast.LENGTH_SHORT).show();
             return;
         }
-        float scale = Math.min(1f, maxW / (float) w);
-        if ((long) (w * scale) * (long) (h * scale) > MAX_PIXELS) scale = (float) Math.sqrt(MAX_PIXELS / ((double) w * h));
+        if (Build.VERSION.SDK_INT >= 26 && (long) w * h <= MAX_PIXELS) {
+            stitch(act, web, w, h, new Done() {
+                @Override
+                public void run(Bitmap big) {
+                    if (big == null) Toast.makeText(act, "No se pudo hacer la captura", Toast.LENGTH_SHORT).show();
+                    else process(act, big, 1f, density, w, maxW, jpg, cutsCss, save);
+                }
+            });
+            return;
+        }
+        float drawScale = (long) w * h > MAX_PIXELS ? (float) Math.sqrt(MAX_PIXELS / ((double) w * h)) : 1f;
+        try {
+            Bitmap big = Bitmap.createBitmap(Math.max(1, Math.round(w * drawScale)), Math.max(1, Math.round(h * drawScale)), Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(big);
+            if (drawScale < 1f) c.scale(drawScale, drawScale);
+            web.draw(c);
+            process(act, big, drawScale, density, w, maxW, jpg, cutsCss, save);
+        } catch (OutOfMemoryError e) {
+            Toast.makeText(act, "No hay memoria suficiente para la captura", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Baja la página tramo a tramo, copia cada pantalla y las une en una imagen; al final vuelve a donde estaba. */
+    @android.annotation.TargetApi(26)
+    private static void stitch(final Activity act, final WebView web, final int w, final int h, final Done onDone) {
+        // La barra de desplazamiento aparece al bajar la página sola: se oculta mientras se copia.
+        final boolean bar = web.isVerticalScrollBarEnabled();
+        web.setVerticalScrollBarEnabled(false);
+        final Done done = new Done() {
+            @Override
+            public void run(Bitmap big) {
+                web.setVerticalScrollBarEnabled(bar);
+                onDone.run(big);
+            }
+        };
+        final Bitmap big;
+        try {
+            big = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        } catch (OutOfMemoryError e) {
+            done.run(null);
+            return;
+        }
+        final Canvas c = new Canvas(big);
+        final int vh = web.getHeight(), origY = web.getScrollY();
+        final int[] state = {0, 0}; // {siguiente scroll pedido, hasta dónde está copiado}
+        final Handler hd = new Handler(Looper.getMainLooper());
+        final Runnable[] step = new Runnable[1];
+        step[0] = new Runnable() {
+            @Override
+            public void run() {
+                web.scrollTo(0, state[0]);
+                hd.postDelayed(new Runnable() { // que la pantalla termine de pintarse en la nueva posición
+                    @Override
+                    public void run() {
+                        final int sy = web.getScrollY();
+                        int[] loc = new int[2];
+                        web.getLocationInWindow(loc);
+                        final Bitmap part;
+                        try {
+                            part = Bitmap.createBitmap(w, vh, Bitmap.Config.ARGB_8888);
+                        } catch (OutOfMemoryError e) {
+                            big.recycle();
+                            web.scrollTo(0, origY);
+                            done.run(null);
+                            return;
+                        }
+                        android.view.PixelCopy.request(act.getWindow(), new android.graphics.Rect(loc[0], loc[1], loc[0] + w, loc[1] + vh), part,
+                            new android.view.PixelCopy.OnPixelCopyFinishedListener() {
+                                @Override
+                                public void onPixelCopyFinished(int result) {
+                                    if (result != android.view.PixelCopy.SUCCESS) {
+                                        part.recycle();
+                                        big.recycle();
+                                        web.scrollTo(0, origY);
+                                        done.run(null);
+                                        return;
+                                    }
+                                    c.drawBitmap(part, 0, sy, null);
+                                    part.recycle();
+                                    state[1] = Math.max(state[1], sy + vh);
+                                    if (sy < state[0] || state[1] >= h) { // llegó al final de la página
+                                        web.scrollTo(0, origY);
+                                        int bottom = Math.min(h, state[1]);
+                                        if (bottom < h) {
+                                            Bitmap cropped = Bitmap.createBitmap(big, 0, 0, w, bottom);
+                                            big.recycle();
+                                            done.run(cropped);
+                                        } else {
+                                            done.run(big);
+                                        }
+                                    } else {
+                                        state[0] = sy + vh;
+                                        step[0].run();
+                                    }
+                                }
+                            }, hd);
+                    }
+                }, 250);
+            }
+        };
+        step[0].run();
+    }
+
+    /** Reduce a la calidad elegida, corta en partes y comprime (en segundo plano); luego comparte o guarda. */
+    private static void process(final Activity act, Bitmap big, float drawScale, float density, int w, int maxW,
+                                final int jpg, ArrayList<Integer> cutsCss, final boolean save) {
+        float scale = Math.min(drawScale, maxW / (float) w);
         final Bitmap full;
         try {
-            full = Bitmap.createBitmap(Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)), Bitmap.Config.ARGB_8888);
-            Canvas c = new Canvas(full);
-            c.scale(scale, scale);
-            web.draw(c);
+            if (scale < drawScale) {
+                full = Bitmap.createScaledBitmap(big, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(big.getHeight() * scale / drawScale)), true);
+                big.recycle();
+            } else {
+                full = big;
+            }
         } catch (OutOfMemoryError e) {
+            big.recycle();
             Toast.makeText(act, "No hay memoria suficiente para la captura", Toast.LENGTH_LONG).show();
             return;
         }
