@@ -9,9 +9,11 @@ import android.graphics.Canvas;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.webkit.WebView;
 import android.widget.Toast;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
@@ -23,22 +25,31 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Captura de la app ENTERA (no solo lo que se ve en pantalla) para compartirla. La página elige en la
- * ventana "Compartir captura" la calidad (alta / media / baja: menos resolución y más compresión, para
- * ahorrar datos móviles) y si va en una imagen o en 3 partes (cortes entre tarjetas que calcula la página).
- * Se dibuja toda la página del WebView (necesita WebView.enableSlowWholeDocumentDraw() antes de crearlo),
- * se guarda en Imágenes/MustManager como JPG y se abre el menú de compartir de Android.
+ * Captura de la app ENTERA (no solo lo que se ve en pantalla). La página elige en la ventana
+ * "Compartir captura" la calidad (alta / media / baja: menos resolución y más compresión, para ahorrar
+ * datos móviles) y si va en una imagen o en 3 partes (cortes entre tarjetas que calcula la página).
+ * Luego se comparte (se guarda en Imágenes/MustManager y se abre el menú de compartir) o se guarda donde
+ * el usuario elija con el selector de Android (Descargas, etc.; sin permisos).
+ * Dibujar toda la página necesita WebView.enableSlowWholeDocumentDraw() antes de crear el WebView.
  */
 final class Screenshot {
 
     /** Más de esto (≈ 60 MB de memoria) se reduce de tamaño para no quedarse sin memoria. */
     private static final long MAX_PIXELS = 15_000_000L;
+    /** Códigos de las pantallas de Android para "Guardar" (elegir archivo o carpeta). */
+    static final int REQ_SAVE_FILE = 41, REQ_SAVE_DIR = 42;
+    /** Imágenes ya preparadas esperando a que el usuario elija dónde guardarlas. */
+    private static ArrayList<byte[]> pendingData;
+    private static ArrayList<String> pendingNames;
 
     private Screenshot() {
     }
 
-    /** Llamar en el hilo de la interfaz. opts = {q:"alta"|"media"|"baja", cuts:[y en px CSS, …]}. */
-    static void share(final Activity act, final WebView web, String opts) {
+    /**
+     * Llamar en el hilo de la interfaz. opts = {q:"alta"|"media"|"baja", cuts:[y en px CSS, …]}.
+     * save = false: compartir; save = true: elegir dónde guardarla.
+     */
+    static void share(final Activity act, final WebView web, String opts, final boolean save) {
         String q = "media";
         final ArrayList<Integer> cutsCss = new ArrayList<Integer>();
         try {
@@ -56,12 +67,12 @@ final class Screenshot {
         web.postDelayed(new Runnable() {
             @Override
             public void run() {
-                capture(act, web, maxW, jpg, cutsCss);
+                capture(act, web, maxW, jpg, cutsCss, save);
             }
         }, 150);
     }
 
-    private static void capture(final Activity act, WebView web, int maxW, final int jpg, ArrayList<Integer> cutsCss) {
+    private static void capture(final Activity act, WebView web, int maxW, final int jpg, ArrayList<Integer> cutsCss, final boolean save) {
         float density = act.getResources().getDisplayMetrics().density;
         int w = web.getWidth();
         int h = (int) Math.ceil(web.getContentHeight() * density);
@@ -92,57 +103,137 @@ final class Screenshot {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final ArrayList<Uri> uris = new ArrayList<Uri>();
-                long bytes = 0;
-                String err = null;
+                // 1) Comprimir cada parte a JPG en memoria
+                final ArrayList<byte[]> data = new ArrayList<byte[]>();
+                final ArrayList<String> names = new ArrayList<String>();
                 String stamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(new Date());
+                long bytes = 0;
                 try {
                     int parts = ys.size() - 1;
                     for (int i = 0; i < parts; i++) {
                         Bitmap part = parts == 1 ? full
                             : Bitmap.createBitmap(full, 0, ys.get(i), full.getWidth(), ys.get(i + 1) - ys.get(i));
-                        String name = "MustManager_" + stamp + (parts == 1 ? "" : "_" + (i + 1)) + ".jpg";
-                        long[] size = new long[1];
-                        Uri u = save(act, part, name, jpg, size);
-                        bytes += size[0];
-                        if (u != null) uris.add(u);
+                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        part.compress(Bitmap.CompressFormat.JPEG, jpg, bos);
+                        data.add(bos.toByteArray());
+                        bytes += bos.size();
+                        names.add("MustManager_" + stamp + (parts == 1 ? "" : "_" + (i + 1)) + ".jpg");
                         if (part != full) part.recycle();
                     }
-                } catch (Exception e) {
-                    err = String.valueOf(e.getMessage());
+                } catch (OutOfMemoryError e) {
+                    data.clear();
                 } finally {
                     full.recycle();
                 }
-                final String error = err;
-                final String kb = bytes >= 1024 * 1024 ? String.format(Locale.US, "%.1f MB", bytes / 1048576.0).replace('.', ',')
+                if (data.isEmpty()) {
+                    toast(act, "No hay memoria suficiente para la captura");
+                    return;
+                }
+                final String size = bytes >= 1024 * 1024 ? String.format(Locale.US, "%.1f MB", bytes / 1048576.0).replace('.', ',')
                     : (bytes / 1024) + " KB";
-                act.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (error != null) {
-                            Toast.makeText(act, "No se pudo guardar la captura: " + error, Toast.LENGTH_LONG).show();
-                        } else if (uris.isEmpty()) {
-                            // Android 7–9: sin MediaStore no se puede compartir sin FileProvider; queda guardada.
-                            Toast.makeText(act, "Captura guardada en la carpeta de la app (Android/data/…/Capturas)", Toast.LENGTH_LONG).show();
-                        } else {
-                            Intent send;
-                            if (uris.size() == 1) {
-                                send = new Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris.get(0));
-                            } else {
-                                send = new Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
-                            }
-                            send.setType("image/jpeg").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            String what = uris.size() == 1 ? "captura" : uris.size() + " imágenes";
-                            act.startActivity(Intent.createChooser(send, "Compartir " + what + " (" + kb + ")"));
-                        }
-                    }
-                });
+                if (save) askWhereToSave(act, data, names);
+                else shareNow(act, data, names, size);
             }
         }, "captura").start();
     }
 
+    /** Guardar: el selector de Android elige un archivo (una imagen) o una carpeta (varias). */
+    private static void askWhereToSave(final Activity act, final ArrayList<byte[]> data, final ArrayList<String> names) {
+        pendingData = data;
+        pendingNames = names;
+        act.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (data.size() == 1) {
+                        act.startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                            .addCategory(Intent.CATEGORY_OPENABLE).setType("image/jpeg")
+                            .putExtra(Intent.EXTRA_TITLE, names.get(0)), REQ_SAVE_FILE);
+                    } else {
+                        Toast.makeText(act, "Elige la carpeta donde guardar las " + data.size() + " imágenes", Toast.LENGTH_LONG).show();
+                        act.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_SAVE_DIR);
+                    }
+                } catch (Exception e) {
+                    pendingData = null;
+                    pendingNames = null;
+                    Toast.makeText(act, "Este dispositivo no permite elegir dónde guardar", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+
+    /** Respuesta del selector de "Guardar" (la pasa MainActivity.onActivityResult). */
+    static void onResult(final Activity act, int requestCode, int resultCode, Intent result) {
+        final ArrayList<byte[]> data = pendingData;
+        final ArrayList<String> names = pendingNames;
+        pendingData = null;
+        pendingNames = null;
+        if (data == null || resultCode != Activity.RESULT_OK || result == null || result.getData() == null) return;
+        final Uri target = result.getData();
+        final boolean dir = requestCode == REQ_SAVE_DIR;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ContentResolver cr = act.getContentResolver();
+                    if (!dir) {
+                        write(cr, target, data.get(0));
+                        toast(act, "Captura guardada");
+                    } else {
+                        Uri parent = DocumentsContract.buildDocumentUriUsingTree(target, DocumentsContract.getTreeDocumentId(target));
+                        for (int i = 0; i < data.size(); i++) {
+                            Uri doc = DocumentsContract.createDocument(cr, parent, "image/jpeg", names.get(i));
+                            if (doc == null) throw new Exception("no se pudo crear " + names.get(i));
+                            write(cr, doc, data.get(i));
+                        }
+                        toast(act, data.size() + " imágenes guardadas en la carpeta elegida");
+                    }
+                } catch (Exception e) {
+                    toast(act, "No se pudo guardar: " + e.getMessage());
+                }
+            }
+        }, "guardar-captura").start();
+    }
+
+    /** Compartir: se guarda en Imágenes/MustManager (hace falta un Uri) y se abre el menú de compartir. */
+    private static void shareNow(final Activity act, ArrayList<byte[]> data, ArrayList<String> names, final String size) {
+        final ArrayList<Uri> uris = new ArrayList<Uri>();
+        String err = null;
+        try {
+            for (int i = 0; i < data.size(); i++) {
+                Uri u = saveToPictures(act, data.get(i), names.get(i));
+                if (u != null) uris.add(u);
+            }
+        } catch (Exception e) {
+            err = String.valueOf(e.getMessage());
+        }
+        final String error = err;
+        act.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (error != null) {
+                    Toast.makeText(act, "No se pudo preparar la captura: " + error, Toast.LENGTH_LONG).show();
+                } else if (uris.isEmpty()) {
+                    // Android 7–9: sin MediaStore no se puede compartir sin FileProvider; queda guardada.
+                    Toast.makeText(act, "Captura guardada en la carpeta de la app (Android/data/…/Capturas)", Toast.LENGTH_LONG).show();
+                } else {
+                    Intent send;
+                    if (uris.size() == 1) {
+                        send = new Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris.get(0));
+                    } else {
+                        send = new Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+                    }
+                    send.setType("image/jpeg").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    String what = uris.size() == 1 ? "captura" : uris.size() + " imágenes";
+                    act.startActivity(Intent.createChooser(send, "Compartir " + what + " (" + size + ")"));
+                    Toast.makeText(act, "También queda en Galería → MustManager", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+
     /** Guarda el JPG en Imágenes/MustManager (Android 10+) o en la carpeta de la app (Android 7–9, sin Uri). */
-    private static Uri save(Activity act, Bitmap bmp, String name, int jpg, long[] size) throws Exception {
+    private static Uri saveToPictures(Activity act, byte[] bytes, String name) throws Exception {
         if (Build.VERSION.SDK_INT >= 29) {
             ContentValues cv = new ContentValues();
             cv.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
@@ -152,15 +243,7 @@ final class Screenshot {
             ContentResolver cr = act.getContentResolver();
             Uri uri = cr.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
             if (uri == null) throw new Exception("no se pudo crear el archivo");
-            OutputStream os = cr.openOutputStream(uri);
-            if (os == null) throw new Exception("no se pudo abrir el archivo");
-            CountingStream cs = new CountingStream(os);
-            try {
-                bmp.compress(Bitmap.CompressFormat.JPEG, jpg, cs);
-            } finally {
-                cs.close();
-            }
-            size[0] = cs.count;
+            write(cr, uri, bytes);
             cv.clear();
             cv.put(MediaStore.MediaColumns.IS_PENDING, 0);
             cr.update(uri, cv, null, null);
@@ -168,35 +251,31 @@ final class Screenshot {
         }
         File dir = new File(act.getExternalFilesDir(null), "Capturas");
         if (!dir.exists() && !dir.mkdirs()) throw new Exception("no se pudo crear la carpeta");
-        File f = new File(dir, name);
-        FileOutputStream os = new FileOutputStream(f);
+        FileOutputStream os = new FileOutputStream(new File(dir, name));
         try {
-            bmp.compress(Bitmap.CompressFormat.JPEG, jpg, os);
+            os.write(bytes);
         } finally {
             os.close();
         }
-        size[0] = f.length();
         return null;
     }
 
-    /** Cuenta los bytes escritos (para decir cuánto ocupa lo que se va a enviar). */
-    private static final class CountingStream extends java.io.FilterOutputStream {
-        long count;
-
-        CountingStream(OutputStream out) {
-            super(out);
+    private static void write(ContentResolver cr, Uri uri, byte[] bytes) throws Exception {
+        OutputStream os = cr.openOutputStream(uri);
+        if (os == null) throw new Exception("no se pudo abrir el archivo");
+        try {
+            os.write(bytes);
+        } finally {
+            os.close();
         }
+    }
 
-        @Override
-        public void write(int b) throws java.io.IOException {
-            out.write(b);
-            count++;
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws java.io.IOException {
-            out.write(b, off, len);
-            count += len;
-        }
+    private static void toast(final Activity act, final String msg) {
+        act.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(act, msg, Toast.LENGTH_LONG).show();
+            }
+        });
     }
 }

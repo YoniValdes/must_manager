@@ -202,6 +202,15 @@ final class GridWatch {
         return o;
     }
 
+    /** "Ya volvió" con el servicio parado (no hay nadie que lleve el estado en memoria): se escribe directamente. */
+    static void markBackOffline(Context ctx, long now) {
+        SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String st = p.getString("state", "");
+        if ("on".equals(st) || "back".equals(st)) return;
+        p.edit().putString("state", "out".equals(st) ? "back" : "on").putLong("back", now).putLong("lastSeen", 0)
+            .putLong("onSince", now).putLong("lastGridSeen", now).apply();
+    }
+
     /** Línea corta para el widget, o null si no hay nada que contar. {texto, 1 = rojo / 0 = azul}. */
     static Object[] widgetLine(Context ctx, long now) {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);

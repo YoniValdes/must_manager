@@ -137,6 +137,9 @@
   .eta .gridBig .big small:last-child { margin-right: 0; }
   .eta .gridBig .label { color: #fca5a5; }
   .eta .gridBig .line b { color: #fff; font-weight: 700; }
+  /* "Ya volvió": por si la app no detecta sola la llegada de la red (dos toques para no marcarlo sin querer) */
+  .eta .gridBig .gridBackBtn { margin-top: 8px; cursor: pointer; font: inherit; font-size: 13px; }
+  .eta .gridBig .gridBackBtn.sure { border-color: #38bdf8; color: #bae6fd; box-shadow: 0 0 10px -2px #38bdf8; }
   body:not(.neon) .eta .gridBig .big { color: var(--bad); }
   @media (max-width: 600px) { .eta .gridBig { position: static; margin-top: 12px; } }
   .eta .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -636,12 +639,14 @@
     <label class="row"><input type="radio" name="sQ" value="baja"><span>Baja <b>· ahorra datos</b>
       <span class="sub" id="sQbaja"><br>La más ligera, para cuando los datos están caros o la conexión va lenta.</span></span></label>
     <div class="fieldsTitle">Imágenes</div>
-    <label class="row"><input type="radio" name="sParts" value="1" checked><span>Toda la app en una imagen
-      <span class="sub"><br>Una imagen larga, de arriba abajo.</span></span></label>
-    <label class="row"><input type="radio" name="sParts" value="3"><span>En 3 partes
-      <span class="sub"><br>Autonomía y batería · la noche y la gráfica · celdas y estado. Se ven más grandes en el móvil.</span></span></label>
+    <label class="row"><input type="radio" name="sParts" value="3" checked><span>En 3 partes <b>· mejor para WhatsApp</b>
+      <span class="sub"><br>Autonomía y batería · la noche y la gráfica · celdas y estado. WhatsApp reduce mucho las imágenes muy largas; en partes se leen bien.</span></span></label>
+    <label class="row"><input type="radio" name="sParts" value="1"><span>Toda la app en una imagen
+      <span class="sub"><br>Una imagen larga, de arriba abajo. Mejor para guardarla o enviarla como documento.</span></span></label>
   </div>
-  <div class="btns"><button id="sGo" class="aboutOk">📤 Compartir</button><button class="secondary aboutOk" id="shOk">Cerrar</button></div>
+  <div class="btns"><button id="sGo" class="aboutOk">📤 Compartir</button><button id="shSave" class="aboutOk">💾 Guardar</button>
+    <button class="secondary aboutOk" id="shOk">Cerrar</button></div>
+  <div class="sub" style="margin-top:8px">«Guardar» te deja elegir la carpeta (Descargas, por ejemplo). Al compartir, la imagen también queda en Galería → MustManager.</div>
 </div>
 </div>
 
@@ -804,7 +809,8 @@
     <div class="big" id="etaBig">--</div>
     <div class="line" id="etaLine">Esperando datos del BMS…</div>
     <div class="gridBig" id="gridBig" hidden><div class="label">Sin corriente<span> · de la calle</span></div>
-      <div class="big" id="gridHours"></div><div class="line" id="gridLine"></div></div>
+      <div class="big" id="gridHours"></div><div class="line" id="gridLine"></div>
+      <button class="chip gridBackBtn" id="gridBack" type="button" hidden>🔌 ¿Ya volvió? Márcalo</button></div>
     <div class="chips"><span class="chip grid" id="etaGrid" hidden></span><span class="chip verdict" id="etaVerdict" hidden></span><span class="chip" id="etaNote" hidden></span>
       <span class="chip" id="etaSun" hidden>☀️ incluye aporte solar</span></div>
   </div>
@@ -906,7 +912,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
-<script src="changelog.js?v=14"></script>
+<script src="changelog.js?v=15"></script>
 <script>
 (function () {
   "use strict";
@@ -957,6 +963,21 @@
       "el " + d.toLocaleDateString("es", { day: "numeric", month: "short" }) + " a ";
     return day + "las <b>" + fmtClock(d) + "</b>";
   }
+  // "¿Ya volvió? Márcalo": primer toque pide confirmación, el segundo lo marca (Java: AlertManager.markGridBack).
+  var gridBackTimer = 0;
+  $("gridBack").addEventListener("click", function () {
+    var b = this;
+    if (!b.classList.contains("sure")) {
+      b.classList.add("sure"); b.textContent = "✔ Toca otra vez: volvió la corriente";
+      clearTimeout(gridBackTimer);
+      gridBackTimer = setTimeout(function () { b.classList.remove("sure"); b.textContent = "🔌 ¿Ya volvió? Márcalo"; }, 4000);
+      return;
+    }
+    clearTimeout(gridBackTimer);
+    b.classList.remove("sure"); b.textContent = "🔌 ¿Ya volvió? Márcalo";
+    Android.gridBack();
+    setTimeout(function () { gridAskedAt = 0; pollGrid(); }, 400);
+  });
   function renderGrid() {
     var el = $("etaGrid");
     $("gridBig").hidden = true;
@@ -975,6 +996,7 @@
           (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) : "Se fue " + (/^las/.test(gridWhen(grid.since)) ? "a " : "") + gridWhen(grid.since);
       }
       $("gridBig").hidden = false;
+      $("gridBack").hidden = !(hasBridge && window.Android && Android.gridBack);
       $("eta").classList.add("gridOn"); // velo oscuro a la derecha: que las nubes no tapen el número rojo
       requestAnimationFrame(updateSky); // que el sol o la luna no queden detrás del número rojo
       el.hidden = true;
@@ -2945,14 +2967,20 @@
   $("shClose").addEventListener("click", closeShot);
   $("shOk").addEventListener("click", closeShot);
   $("shotCard").addEventListener("click", function (e) { if (e.target === this) closeShot(); });
-  $("sGo").addEventListener("click", function () {
+  function shotRun(save) {
     var opts = { q: shotPick("sQ"), parts: shotPick("sParts") };
     try { localStorage.setItem("mm-shot", JSON.stringify(opts)); } catch (e) {}
-    var send = { q: opts.q, cuts: opts.parts === "3" ? shotCuts() : [] };
+    var send = JSON.stringify({ q: opts.q, cuts: opts.parts === "3" ? shotCuts() : [] });
     closeShot();
     // Esperar a que la ventana termine de cerrarse: si no, saldría en la captura.
-    setTimeout(function () { if (window.Android && Android.shareScreenshot) Android.shareScreenshot(JSON.stringify(send)); }, modalCloseMs() + 80);
-  });
+    setTimeout(function () {
+      if (!window.Android) return;
+      if (save && Android.saveScreenshot) Android.saveScreenshot(send);
+      else if (Android.shareScreenshot) Android.shareScreenshot(send);
+    }, modalCloseMs() + 80);
+  }
+  $("sGo").addEventListener("click", function () { shotRun(false); });
+  $("shSave").addEventListener("click", function () { shotRun(true); });
   if (!(hasBridge && window.Android && Android.shareScreenshot)) $("shotBtn").hidden = true;
   if (/[?&]panel=compartir/.test(location.search)) setTimeout(function () { togglePanel("shotCard", "shotBtn", true); }, 0);
 

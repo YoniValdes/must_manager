@@ -248,6 +248,18 @@ public class MainActivity extends Activity implements BmsClient.Listener, Update
             return GridWatch.json(MainActivity.this, System.currentTimeMillis()).toString();
         }
 
+        /** Botón "Ya volvió": el usuario marca que llegó la corriente (si la app no lo detectó sola). */
+        @JavascriptInterface
+        public void gridBack() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (service != null) service.markGridBack();
+                    else GridWatch.markBackOffline(MainActivity.this, System.currentTimeMillis());
+                }
+            });
+        }
+
         @JavascriptInterface
         public String getSettings() {
             return Settings.load(MainActivity.this).toJson().toString();
@@ -316,7 +328,18 @@ public class MainActivity extends Activity implements BmsClient.Listener, Update
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    Screenshot.share(MainActivity.this, web, opts);
+                    Screenshot.share(MainActivity.this, web, opts, false);
+                }
+            });
+        }
+
+        /** Igual, pero en vez de compartir abre el selector de Android para guardarla donde el usuario quiera. */
+        @JavascriptInterface
+        public void saveScreenshot(final String opts) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Screenshot.share(MainActivity.this, web, opts, true);
                 }
             });
         }
@@ -382,6 +405,15 @@ public class MainActivity extends Activity implements BmsClient.Listener, Update
             if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) return false;
         }
         return true;
+    }
+
+    /** Vuelta del selector de Android de "Guardar captura" (elegir archivo o carpeta). */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == Screenshot.REQ_SAVE_FILE || requestCode == Screenshot.REQ_SAVE_DIR) {
+            Screenshot.onResult(this, requestCode, resultCode, data);
+        }
     }
 
     @Override

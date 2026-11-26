@@ -156,6 +156,11 @@ public class MonitorService extends Service implements BmsClient.Listener {
         alerts.testAlarm();
     }
 
+    /** Botón "Ya volvió" del bloque Sin corriente. */
+    public void markGridBack() {
+        alerts.markGridBack(lastBasic != null ? lastBasic.soc : 0);
+    }
+
     public void stopMonitoring() {
         prefs.edit().putBoolean("monitoring", false).apply();
         alerts.onStopped();

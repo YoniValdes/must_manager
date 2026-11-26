@@ -36,6 +36,10 @@ final class AlertManager {
     static final double GRID_ON_NIGHT_W = 150;   // de noche cualquier carga real es la red
     static final double GRID_ON_DAY_MARGIN = 1.03; // de día, algo más de lo que pueden dar los paneles
     private static final double GRID_OFF_W = -100;       // la batería vuelve a descargar → se fue la red
+    // De día, la red se reconoce por el SALTO: la potencia sube de golpe (en segundos) y se queda arriba.
+    // Con la batería casi llena la red carga poco (250–400 W), así que mirar solo el nivel no basta
+    // (26-nov-2026: volvió la red con la batería al 85 % cargando 777 W y la app siguió en "Sin corriente").
+    private static final double GRID_JUMP_MIN_W = 450, GRID_JUMP_PANELS = 0.55;
     private static final long CONN_LOST_MS = 5 * MIN;
 
     private final Context ctx;
@@ -50,6 +54,9 @@ final class AlertManager {
     private boolean socWarned, socCriticalWarned;
     private boolean gridOn;
     private long gridSince, gridCondSince, dischargeSince;
+    /** Salto de potencia de día pendiente de confirmar (ver checkGridJump). */
+    private long jumpAt;
+    private double jumpBaseW;
     private int gridSoc0;
     /** Horas del apagón guardadas (sobreviven a cerrar la app); de aquí sale también gridOn al arrancar. */
     private final GridWatch grid;
@@ -170,6 +177,7 @@ final class AlertManager {
      * la notificación solo sale si el usuario tiene activada la alerta.
      */
     private void checkGrid(BmsProtocol.Basic b, Settings s, long now, boolean notify) {
+        if (checkGridJump(b, s, now, notify)) return;
         double[] avg = average(now, MIN);
         if (avg == null || avg[2] < 50000) return; // menos de ~1 min de datos
         double w = avg[1];
@@ -201,6 +209,68 @@ final class AlertManager {
             if (notify) alert(ID_GRID, "🔌 Se fue la corriente", "Estuvo " + duration(now - gridSince) + " · SOC " + gridSoc0
                 + " → " + b.soc + " %. Ahora consumiendo " + Math.round(-w) + " W de la batería.");
         }
+    }
+
+    /**
+     * De día y sin red: la media de los últimos 20 s supera a la de 25–50 s antes en más de
+     * max(450 W, 55 % de los paneles) y se mantiene arriba 1 min → volvió la red. El sol no da saltos así
+     * salvo una nube que se aparta de golpe con los paneles a tope (raro); por eso también hay un botón
+     * "Ya volvió" en la pantalla. Devuelve true si acaba de confirmar la llegada.
+     */
+    private boolean checkGridJump(BmsProtocol.Basic b, Settings s, long now, boolean notify) {
+        if (gridOn || s.isNight(now)) {
+            jumpAt = 0;
+            return false;
+        }
+        double jump = Math.max(GRID_JUMP_MIN_W, s.panelsW * GRID_JUMP_PANELS);
+        if (jumpAt == 0) {
+            double pre = meanW(now - 50000, now - 25000), post = meanW(now - 20000, now);
+            if (!Double.isNaN(pre) && !Double.isNaN(post) && post - pre >= jump && post > 100) {
+                jumpAt = now - 20000;
+                jumpBaseW = pre;
+            }
+            return false;
+        }
+        double post = meanW(now - 30000, now);
+        if (Double.isNaN(post) || post < jumpBaseW + jump * 0.6 || post < 50) {
+            jumpAt = 0; // bajó otra vez: era una nube o un pico
+            return false;
+        }
+        if (now - jumpAt < GRID_CONFIRM_MS + 20000) return false;
+        long t = jumpAt;
+        jumpAt = 0;
+        gridCondSince = 0;
+        gridOn = true;
+        gridSince = t;
+        gridSoc0 = b.soc;
+        grid.onGridOn(now, t, b.soc);
+        if (notify) alert(ID_GRID, "⚡ Llegó la corriente", "Cargando a " + Math.round(post) + " W · SOC " + b.soc + " %");
+        return true;
+    }
+
+    /** El usuario dice en la pantalla que ya volvió la corriente (botón "Ya volvió"). */
+    void markGridBack(int soc) {
+        if (gridOn) return;
+        long now = System.currentTimeMillis();
+        jumpAt = 0;
+        gridCondSince = 0;
+        gridOn = true;
+        gridSince = now;
+        gridSoc0 = soc;
+        grid.onGridOn(now, now, soc);
+    }
+
+    /** Media de la potencia (W) de las lecturas entre from y to, o NaN si hay menos de 2. */
+    private double meanW(long from, long to) {
+        double sum = 0;
+        int n = 0;
+        for (double[] r : window) {
+            if (r[0] >= from && r[0] <= to) {
+                sum += r[2];
+                n++;
+            }
+        }
+        return n < 2 ? Double.NaN : sum / n;
     }
 
     // ------------------------------------------------------------------ amanecer

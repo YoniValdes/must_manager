@@ -13,7 +13,8 @@ window.CHANGELOG = [
     version: "0.23",
     items: [
       ["new", "Ayuda en cada tarjeta: toca el «?» de su esquina y un globo te explica qué mide y cómo leerla."],
-      ["new", "Botón para compartir una captura de la app por WhatsApp, Telegram…: eliges la calidad (la baja ahorra datos) y si va en una imagen o en 3 partes."],
+      ["new", "Botón para compartir o guardar una captura de la app: eliges la calidad (la baja ahorra datos), si va en una imagen o en 3 partes (mejor para WhatsApp) y la carpeta donde guardarla."],
+      ["fix", "De día, la app se entera mejor de que volvió la corriente aunque la batería esté casi llena; y si no, puedes marcarlo tú con «¿Ya volvió? Márcalo»."],
       ["imp", "Al cargar, la app dice de dónde viene la energía: del sol, de la red o de los dos (con un icono de torre eléctrica para la red)."],
       ["fix", "Las nubes del cielo ya no tapan el aviso rojo de «Sin corriente»."]
     ]
