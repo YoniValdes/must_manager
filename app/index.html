@@ -1965,15 +1965,25 @@
   // Apagones en el tramo, con el mismo criterio que la alerta de Java: la red "llega" si la carga supera
   // 150 W de noche (o los W de los paneles × 1,03 de día) dos minutos seguidos, y "se va" cuando la batería
   // vuelve a descargar (< −100 W) dos minutos seguidos. [{t, kind: "out" | "back"}]
+  // De día también por SALTO (como AlertManager.checkGridJump): con la batería casi llena la red carga poco y
+  // nunca supera a los paneles, pero su llegada es un salto vertical de la potencia (26-nov-2026).
   function gridEvents(rows, from) {
     var panels = (settingsCache && settingsCache.panelsW) || 1020, sr = SUNRISE.split(":"), ss = SUNSET.split(":");
+    var jump = Math.max(450, panels * 0.55), w1 = null, w2 = null, jumpBase = null;
     var on = null, streak = 0, cand = 0, prev = null, ev = [];
     rows.forEach(function (r) {
-      if (prev !== null && r[0] - prev > GAP_MS) streak = 0; // tras un hueco no se confirma nada a medias
+      if (prev !== null && r[0] - prev > GAP_MS) { streak = 0; w1 = w2 = null; jumpBase = null; } // tras un hueco no se confirma nada a medias
       prev = r[0];
       var d = new Date(r[0]), mins = d.getHours() * 60 + d.getMinutes();
       var night = mins >= +ss[0] * 60 + +ss[1] || mins < +sr[0] * 60 + +sr[1];
-      var gridNow = r[2] > (night ? 150 : panels * 1.03), disNow = r[2] < -100;
+      // Salto: sube más de "jump" respecto a 1 o 2 tramos antes (la subida puede caer a mitad de un tramo).
+      if (on === false && !night && r[2] > 100) {
+        var base = Math.min(w1 === null ? Infinity : w1, w2 === null ? Infinity : w2);
+        if (jumpBase === null && isFinite(base) && r[2] - base >= jump) jumpBase = base;
+      }
+      if (jumpBase !== null && (on !== false || night || r[2] < jumpBase + jump * 0.6)) jumpBase = null;
+      w2 = w1; w1 = r[2];
+      var gridNow = r[2] > (night ? 150 : panels * 1.03) || jumpBase !== null, disNow = r[2] < -100;
       var want = on === true ? disNow : gridNow; // ¿cambia el estado?
       if (on === null) want = gridNow || disNow;
       if (want) { if (!streak) cand = r[0]; streak++; } else streak = 0;
@@ -2048,9 +2058,15 @@
       evs.forEach(function (e) { if (e.kind === kind) out.push([e.t, 0], [e.t, top], [e.t + 1, null]); });
       return out;
     }
+    // "Volvió" a la izquierda de su línea y "Se fue" a la derecha. Si aun así dos etiquetas se pisan (un corte
+    // corto: "Se fue 11:07" y "Volvió 13:47" muy juntas), la segunda baja una fila.
+    var vis = zoomRange ? [zoomRange.a, zoomRange.b] : [from, now];
+    var pxPerMs = ($("chart").clientWidth || 600) * 0.86 / Math.max(1, vis[1] - vis[0]), LABEL_PX = 84, rowsUsed = [];
     var evMarks = evs.map(function (e) {
-      // "Volvió" a la izquierda de su línea y "Se fue" a la derecha: así no se pisan aunque estén cerca.
-      return { value: [e.t, 1], label: { formatter: (e.kind === "out" ? "⚡ Se fue " : "🔌 Volvió ") + fmtClock(new Date(e.t)),
+      var x = (e.t - vis[0]) * pxPerMs, span = e.kind === "out" ? [x, x + LABEL_PX] : [x - LABEL_PX, x], row = 0;
+      while ((rowsUsed[row] || []).some(function (s) { return span[0] < s[1] + 6 && s[0] < span[1] + 6; })) row++;
+      (rowsUsed[row] = rowsUsed[row] || []).push(span);
+      return { value: [e.t, 1 - row * 0.14], label: { formatter: (e.kind === "out" ? "⚡ Se fue " : "🔌 Volvió ") + fmtClock(new Date(e.t)),
         color: e.kind === "out" ? "#f87171" : "#38bdf8", position: e.kind === "out" ? "right" : "left" } };
     });
     var OUT_C = "#ef4444", BACK_C = "#38bdf8";
