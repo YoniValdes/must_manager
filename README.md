@@ -2,7 +2,7 @@
 
 App Android para vigilar por Bluetooth la batería LiFePO4 de los equipos solares todo en uno **Must HBP3000**: inversor y batería en el mismo mueble. Lee el BMS en tiempo real, guarda el historial en el dispositivo, dibuja gráficas, avisa cuando hace falta y exporta los datos a Excel o CSV.
 
-**Funciona 100 % sin internet.** Está pensada para lugares con cortes largos de corriente, donde lo que importa es saber si la batería llega al amanecer.
+**Funciona sin internet.** Solo se conecta, si hay red, para buscar y descargar actualizaciones de la propia app (una consulta pequeña al día a las Releases de este repositorio); nunca envía datos de la batería ni del usuario. Está pensada para lugares con cortes largos de corriente, donde lo que importa es saber si la batería llega al amanecer.
 
 > App no oficial, hecha por un usuario para usuarios. No está relacionada con MUST Power.
 
@@ -17,6 +17,7 @@ App Android para vigilar por Bluetooth la batería LiFePO4 de los equipos solare
 - **Medidor de aparatos:** mide cuánto gasta cada aparato de la casa.
 - **Widget** para la pantalla de inicio.
 - **Exportar** a Excel (.xlsx, tres hojas) o CSV, sin librerías externas.
+- **Actualizaciones:** avisa cuando hay una versión nueva y se actualiza con un botón (Android pide confirmar la instalación).
 
 ## Equipos compatibles
 

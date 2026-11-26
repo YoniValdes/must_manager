@@ -28,13 +28,15 @@ import org.json.JSONObject;
  * Página → Java: Android.connect() (busca), Android.connectTo(dirección), Android.disconnect(),
  *                Android.version(), Android.getHistory(desde, hasta, intervalo)
  */
-public class MainActivity extends Activity implements BmsClient.Listener {
+public class MainActivity extends Activity implements BmsClient.Listener, Updater.Listener {
 
     private static final int REQ_PERMS = 1;
     private WebView web;
     private MonitorService service;
     private boolean pageReady;
     private volatile Exporter.Result lastExport;
+    private boolean showUpdateOnLoad;     // se abrió desde la notificación "Hay una versión nueva"
+    private boolean waitingInstallPermission; // el usuario fue a activar "Instalar apps desconocidas"
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -81,6 +83,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
                 attach();
+                if (showUpdateOnLoad) { showUpdateOnLoad = false; sendUpdate("showUpdate", Updater.state(MainActivity.this)); }
             }
         });
         web.setBackgroundColor(0xFF0F1418);
@@ -89,6 +92,44 @@ public class MainActivity extends Activity implements BmsClient.Listener {
         web.loadUrl("file:///android_asset/www/index.html");
 
         bindService(new Intent(this, MonitorService.class), connection, Context.BIND_AUTO_CREATE);
+        showUpdateOnLoad = getIntent() != null && getIntent().getBooleanExtra(Updater.EXTRA_SHOW_UPDATE, false);
+        Updater.listener = this;
+    }
+
+    /** La app ya estaba abierta y se toca la notificación "Hay una versión nueva" (launchMode singleTask). */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && intent.getBooleanExtra(Updater.EXTRA_SHOW_UPDATE, false)) {
+            if (pageReady) sendUpdate("showUpdate", Updater.state(this));
+            else showUpdateOnLoad = true;
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Updater.listener = this;
+        Updater.maybeCheck(this);
+        // Vuelve de la pantalla "Instalar apps desconocidas": si ya lo activó, sigue con la actualización.
+        if (waitingInstallPermission) {
+            waitingInstallPermission = false;
+            if (Updater.canInstall(this)) startUpdate();
+            else sendUpdate("updatePermission", Updater.state(this));
+        }
+    }
+
+    /** Descarga e instala, o primero lleva al usuario al interruptor de Android si hace falta. */
+    private void startUpdate() {
+        if (!Updater.canInstall(this)) {
+            waitingInstallPermission = true;
+            sendUpdate("updatePermission", Updater.state(this));
+            Updater.openInstallPermission(this);
+            return;
+        }
+        Updater.cancelNotification(this);
+        sendUpdate("updateStarted", Updater.state(this));
+        Updater.downloadAndInstall(this);
     }
 
     /** Cuando la página y el servicio están listos, el servicio repinta el estado actual. */
@@ -98,6 +139,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
 
     @Override
     protected void onDestroy() {
+        if (Updater.listener == this) Updater.listener = null;
         // Cerrar la pantalla NO detiene la monitorización: eso solo lo hace "Desconectar".
         if (service != null) service.setUi(null);
         unbindService(connection);
@@ -108,6 +150,44 @@ public class MainActivity extends Activity implements BmsClient.Listener {
     // ------------------------------------------------------------------ puente con la página
 
     private class Bridge {
+        /** Lo que se sabe de la última versión publicada (no consulta la red). */
+        @JavascriptInterface
+        public String getUpdate() {
+            return Updater.state(MainActivity.this).toString();
+        }
+
+        /** Botón "Buscar actualización": consulta GitHub ahora mismo. Responde con window.bms({type:"update"}). */
+        @JavascriptInterface
+        public void checkUpdate() {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        JSONObject st = Updater.check(MainActivity.this);
+                        sendUpdate("update", st);
+                    } catch (Exception e) {
+                        onUpdateError("No se pudo comprobar si hay versiones nuevas. ¿Hay conexión a internet?");
+                    }
+                }
+            }, "mm-update-manual").start();
+        }
+
+        /** Botón "Actualizar". */
+        @JavascriptInterface
+        public void startUpdate() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    MainActivity.this.startUpdate();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void setUpdateAuto(boolean on) {
+            Updater.setAutoEnabled(MainActivity.this, on);
+        }
+
         @JavascriptInterface
         public void connect() {
             runOnUiThread(new Runnable() {
@@ -317,6 +397,41 @@ public class MainActivity extends Activity implements BmsClient.Listener {
 
     private void send(JSONObject msg) {
         if (pageReady) web.evaluateJavascript("window.bms && window.bms(" + msg.toString() + ")", null);
+    }
+
+    // ------------------------------------------------------------------ actualizaciones → página
+    // Updater avisa desde sus propios hilos: todo pasa al hilo de la pantalla antes de tocar el WebView.
+
+    private void sendUpdate(final String type, final JSONObject state) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    JSONObject m = new JSONObject(state.toString());
+                    m.put("type", type);
+                    send(m);
+                } catch (JSONException ignored) { }
+            }
+        });
+    }
+
+    @Override
+    public void onUpdateState(JSONObject state) {
+        sendUpdate("update", state);
+    }
+
+    @Override
+    public void onUpdateProgress(long done, long total) {
+        try {
+            sendUpdate("updateProgress", new JSONObject().put("done", done).put("total", total));
+        } catch (JSONException ignored) { }
+    }
+
+    @Override
+    public void onUpdateError(String message) {
+        try {
+            sendUpdate("updateError", new JSONObject().put("message", message));
+        } catch (JSONException ignored) { }
     }
 
     private static Object num(double v) {

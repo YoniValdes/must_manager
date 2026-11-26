@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sin permiso INTERNET a propósito: la app no puede conectarse a la red aunque quisiera. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jhonny.mustmanager" android:versionCode="21" android:versionName="0.21">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34"/>
@@ -17,6 +16,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Internet SOLO para buscar y descargar actualizaciones (Updater): una consulta pequeña al día a las
+         Releases públicas de GitHub. Nunca se envía ningún dato de la batería ni del usuario.
+         Sin conexión, la app funciona exactamente igual. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Pasar la APK descargada al instalador de Android (el usuario siempre confirma la instalación). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
 
@@ -38,5 +44,7 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info"/>
         </receiver>
+        <!-- Respuesta del instalador de Android al actualizar la app (Updater / InstallReceiver). -->
+        <receiver android:name=".InstallReceiver" android:exported="false"/>
     </application>
 </manifest>

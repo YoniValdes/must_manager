@@ -286,6 +286,8 @@ public class MonitorService extends Service implements BmsClient.Listener {
     public void onBasic(BmsProtocol.Basic b) {
         lastBasic = b;
         long now = System.currentTimeMillis();
+        // ¿Hay versión nueva? Como mucho una consulta al día, en segundo plano (la propia función lo limita).
+        Updater.maybeCheck(this);
         // No se guarda hasta tener también las celdas (la primera lectura tras conectar llega antes que ellas).
         if (lastCells != null && now - lastSavedAt >= SAVE_EVERY_MS) {
             // dt: lo que representa esta fila. Tras un corte no inventamos datos: como mucho 30 s.
