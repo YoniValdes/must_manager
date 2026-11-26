@@ -1797,6 +1797,39 @@
 
   // Zoom: rango visible [desde, hasta] en ms; null = todo. Si el final está en "ahora", sigue avanzando solo.
   var zoomRange = null, chartSpan = null;
+  // Marcas de hora según el zoom: lejos, cada 4 h; cerca, cada 15 o 10 min (nunca una fila de números).
+  function tickMs(span) {
+    var H = 3600000, M = 60000;
+    return span > 16 * H ? 4 * H : span > 8 * H ? 2 * H : span > 4 * H ? H : span > 2 * H ? 30 * M : span > H ? 15 * M : 10 * M;
+  }
+  function tickAxes(span) {
+    var iv = tickMs(span), minors = iv >= 2 * 3600000 ? iv / 3600000 : iv === 3600000 ? 4 : 3;
+    var t = { minInterval: iv, maxInterval: iv, minorTick: { splitNumber: minors } };
+    return [t, t, {}];
+  }
+  // Apagones en el tramo, con el mismo criterio que la alerta de Java: la red "llega" si la carga supera
+  // 150 W de noche (o los W de los paneles × 1,03 de día) dos minutos seguidos, y "se va" cuando la batería
+  // vuelve a descargar (< −100 W) dos minutos seguidos. [{t, kind: "out" | "back"}]
+  function gridEvents(rows, from) {
+    var panels = (settingsCache && settingsCache.panelsW) || 1020, sr = SUNRISE.split(":"), ss = SUNSET.split(":");
+    var on = null, streak = 0, cand = 0, prev = null, ev = [];
+    rows.forEach(function (r) {
+      if (prev !== null && r[0] - prev > GAP_MS) streak = 0; // tras un hueco no se confirma nada a medias
+      prev = r[0];
+      var d = new Date(r[0]), mins = d.getHours() * 60 + d.getMinutes();
+      var night = mins >= +ss[0] * 60 + +ss[1] || mins < +sr[0] * 60 + +sr[1];
+      var gridNow = r[2] > (night ? 150 : panels * 1.03), disNow = r[2] < -100;
+      var want = on === true ? disNow : gridNow; // ¿cambia el estado?
+      if (on === null) want = gridNow || disNow;
+      if (want) { if (!streak) cand = r[0]; streak++; } else streak = 0;
+      if (streak >= 2) {
+        var next = on === null ? gridNow : !on;
+        if (on !== null && cand >= from) ev.push({ t: cand, kind: next ? "back" : "out" });
+        on = next; streak = 0;
+      }
+    });
+    return ev;
+  }
   function renderChart(rows, now) {
     if (!window.echarts) return;
     if (!chart) {
@@ -1808,6 +1841,7 @@
         if (a == null || !chartSpan) return;
         zoomRange = (b - a) >= (chartSpan[1] - chartSpan[0]) - 60000 ? null : { a: a, b: b, live: chartSpan[1] - b < 3 * 60000 };
         $("zoomReset").hidden = !zoomRange;
+        chart.setOption({ xAxis: tickAxes(b - a) });
       });
       $("zoomReset").addEventListener("click", function () {
         zoomRange = null; $("zoomReset").hidden = true;
@@ -1850,6 +1884,19 @@
     for (var i = soc.length - 1; i >= 0; i--) if (soc[i][1] != null) { lastSoc = soc[i]; break; }
     for (var j = pw.length - 1; j >= 0; j--) if (pw[j][1] != null) { lastPw = pw[j]; break; }
     var liveOk = lastSoc && now - lastSoc[0] < 5 * 60000; // el punto que late solo si hay datos recientes
+    // Apagones: línea vertical discontinua y etiqueta ("⚡ Se fue 00:10" en rojo, "🔌 Volvió 06:21" en azul).
+    var evs = gridEvents(rows.filter(function (r) { return r[0] >= from - 3 * HOUR; }), from);
+    function evLines(kind, top) {
+      var out = [];
+      evs.forEach(function (e) { if (e.kind === kind) out.push([e.t, 0], [e.t, top], [e.t + 1, null]); });
+      return out;
+    }
+    var evMarks = evs.map(function (e) {
+      // "Volvió" a la izquierda de su línea y "Se fue" a la derecha: así no se pisan aunque estén cerca.
+      return { value: [e.t, 1], label: { formatter: (e.kind === "out" ? "⚡ Se fue " : "🔌 Volvió ") + fmtClock(new Date(e.t)),
+        color: e.kind === "out" ? "#f87171" : "#38bdf8", position: e.kind === "out" ? "right" : "left" } };
+    });
+    var OUT_C = "#ef4444", BACK_C = "#38bdf8";
     chart.setOption({
       animation: true, animationDuration: 0, animationDurationUpdate: 250,
       textStyle: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" },
@@ -1880,9 +1927,9 @@
       grid: [{ left: 64, right: 46, top: 24, height: "30%" }, { left: 64, right: 46, top: "47%", bottom: 64 }],
       // Zoom como en un editor de vídeo: pellizcar o la rueda amplían; arrastrar mueve; abajo, la barra con asas.
       dataZoom: [
-        { type: "inside", xAxisIndex: [0, 1], filterMode: "none", minValueSpan: 20 * 60000, zoomOnMouseWheel: true,
+        { type: "inside", xAxisIndex: [0, 1, 2], filterMode: "none", minValueSpan: 20 * 60000, zoomOnMouseWheel: true,
           moveOnMouseMove: true, moveOnMouseWheel: false, preventDefaultMouseMove: false },
-        { type: "slider", xAxisIndex: [0, 1], filterMode: "none", minValueSpan: 20 * 60000, height: 22, bottom: 8, left: 64, right: 46,
+        { type: "slider", xAxisIndex: [0, 1, 2], filterMode: "none", minValueSpan: 20 * 60000, height: 22, bottom: 8, left: 64, right: 46,
           borderColor: grid, backgroundColor: "transparent", fillerColor: "color-mix(in srgb, " + accent + " 18%, transparent)",
           handleStyle: { color: accent, borderColor: accent }, moveHandleStyle: { color: accent, opacity: 0.5 },
           emphasis: { handleStyle: { color: accent }, moveHandleStyle: { color: accent } },
@@ -1894,10 +1941,10 @@
       xAxis: [
         { type: "time", gridIndex: 0, min: from, max: now, axisLabel: { show: false }, axisTick: { show: false },
           axisLine: { lineStyle: { color: grid } }, splitLine: { show: true, lineStyle: { color: grid, type: "dashed", opacity: 0.6 } } },
-        { type: "time", gridIndex: 1, min: from, max: now, splitNumber: 12,
+        { type: "time", gridIndex: 1, min: from, max: now,
           axisLabel: { color: muted, formatter: "{HH}:{mm}", hideOverlap: true },
           axisTick: { show: true, length: 5, lineStyle: { color: muted, opacity: 0.6 } },
-          minorTick: { show: true, splitNumber: 4, length: 3, lineStyle: { color: muted, opacity: 0.35 } },
+          minorTick: { show: true, length: 3, lineStyle: { color: muted, opacity: 0.35 } },
           axisLine: { lineStyle: { color: grid } }, splitLine: { show: true, lineStyle: { color: grid, type: "dashed", opacity: 0.6 } } },
         { type: "time", gridIndex: 1, min: from, max: now, show: false }
       ],
@@ -1939,9 +1986,23 @@
           rippleEffect: { period: 2.6, scale: 3.2, brushType: "fill" }, itemStyle: { color: COLOR_SOC }, silent: true, tooltip: { show: false }, z: 5 },
         { name: "ahora2", type: "effectScatter", xAxisIndex: 1, yAxisIndex: 1, data: liveOk && lastPw ? [lastPw] : [], symbolSize: 7,
           rippleEffect: { period: 2.6, scale: 3.2, brushType: "fill" }, silent: true, tooltip: { show: false }, z: 5,
-          itemStyle: { color: lastPw && lastPw[1] >= 0 ? COLOR_CHARGE : COLOR_DISCHARGE } }
+          itemStyle: { color: lastPw && lastPw[1] >= 0 ? COLOR_CHARGE : COLOR_DISCHARGE } },
+        // Apagones (en los dos paneles): líneas verticales y etiquetas arriba del panel de potencia.
+        { name: "seFue", type: "line", xAxisIndex: 2, yAxisIndex: 2, data: evLines("out", 1), symbol: "none", silent: true, animation: false,
+          connectNulls: false, lineStyle: { color: OUT_C, width: 1.5, type: "dashed" }, tooltip: { show: false }, z: 4 },
+        { name: "volvio", type: "line", xAxisIndex: 2, yAxisIndex: 2, data: evLines("back", 1), symbol: "none", silent: true, animation: false,
+          connectNulls: false, lineStyle: { color: BACK_C, width: 1.5, type: "dashed" }, tooltip: { show: false }, z: 4 },
+        { name: "seFue0", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: evLines("out", 100), symbol: "none", silent: true, animation: false,
+          connectNulls: false, lineStyle: { color: OUT_C, width: 1.5, type: "dashed", opacity: 0.7 }, tooltip: { show: false }, z: 4 },
+        { name: "volvio0", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: evLines("back", 100), symbol: "none", silent: true, animation: false,
+          connectNulls: false, lineStyle: { color: BACK_C, width: 1.5, type: "dashed", opacity: 0.7 }, tooltip: { show: false }, z: 4 },
+        { name: "eventos", type: "scatter", xAxisIndex: 2, yAxisIndex: 2, data: evMarks, symbolSize: 0, silent: true, animation: false,
+          tooltip: { show: false }, z: 6,
+          label: { show: true, distance: 4, fontSize: 11, fontWeight: 700, offset: [0, 10],
+            backgroundColor: "rgba(10,14,20,.75)", padding: [2, 5], borderRadius: 4 } }
       ]
     }, true);
+    chart.setOption({ xAxis: tickAxes(zr ? zr.b - zr.a : now - from) });
   }
 
   // ---------------------------------------------------------------- estado del BMS (app/status.js)
