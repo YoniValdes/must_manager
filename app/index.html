@@ -288,6 +288,11 @@
   .news .t-imp { background: color-mix(in srgb, var(--charge) 22%, transparent); color: #7cc4f0; }
   .news h3 { font-size: 12px; color: var(--muted); margin: 12px 0 0; text-align: left; border-top: 1px solid var(--line); padding-top: 12px; }
   .about a { color: var(--acc); font-weight: 600; }
+.keep ol { margin: 12px auto 4px; padding: 0; list-style: none; counter-reset: paso; display: grid; gap: 8px;
+  text-align: left; max-width: 340px; }
+.keep li { counter-increment: paso; display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; line-height: 1.4; }
+.keep li::before { content: counter(paso); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--acc) 22%, transparent); color: var(--acc); }
   .about .sub { color: var(--muted); font-size: 12px; }
   /* Tarjeta del SOC cuadrada (su lado ≈ el alto de los cuatro KPIs) */
   .hero { display: grid; grid-template-columns: 252px 1fr; gap: 14px; margin-bottom: 14px; }
@@ -392,6 +397,7 @@
   <ul>
     <li><b>Solo lectura</b> y <b>sin internet</b>: nunca cambia nada del BMS.</li>
     <li>Cierra <b>BMS tools</b> antes de conectar.</li>
+    <li>🔒 Déjala <b>anclada en recientes</b> para que no deje de grabar · <a href="#" id="aKeep">cómo</a></li>
   </ul>
   <dl>
     <dt>Autor</dt><dd>Jhonny Valdes</dd>
@@ -518,6 +524,26 @@
   <div class="btns sTests"><button class="secondary" id="sTest">🔔 Probar una alerta</button><button class="secondary" id="sTestAlarm">⏰ Probar alarma</button></div>
   <div class="btns"><button id="sSave" class="aboutOk">Guardar</button><button class="secondary aboutOk" id="sOk">Cerrar</button></div>
   <div class="saved" id="sSaved" aria-live="polite"></div>
+</div>
+</div>
+
+<div class="modal" id="keepCard" hidden>
+<div class="card settings about keep" role="dialog" aria-modal="true" aria-labelledby="keepTitle">
+  <button class="icon close" id="kClose" aria-label="Cerrar">✕</button>
+  <div class="aboutLogo" aria-hidden="true">🔒</div>
+  <div class="newsVer" id="keepTitle">Que no se pierdan datos</div>
+  <div class="newsSub">Un ajuste de 10 segundos, solo una vez</div>
+  <p>Must Manager graba la batería y te avisa aunque la pantalla esté apagada. Pero si la quitas de las
+    <b>aplicaciones recientes</b> (o pulsas «Cerrar todo»), Android la cierra del todo: deja de grabar,
+    no avisa y salen huecos en la gráfica.</p>
+  <ol>
+    <li><span>Abre las <b>aplicaciones recientes</b> (el botón <b>|||</b> de abajo, o desliza hacia arriba y mantén).</span></li>
+    <li><span>Toca el <b>icono de Must Manager</b>, encima de su ventana.</span></li>
+    <li><span>Elige <b>«Mantener abierta»</b>. Saldrá un candado 🔒 y «Cerrar todo» ya no la cerrará.</span></li>
+  </ol>
+  <p class="sub">En otros móviles se llama «Bloquear» o «Anclar». Si aun así se cierra: Ajustes → Aplicaciones →
+    Must Manager → Batería → <b>Sin restricciones</b>.</p>
+  <button id="kOk" class="aboutOk">Entendido</button>
 </div>
 </div>
 
@@ -1026,6 +1052,7 @@
     $("picker").hidden = !(hasBridge && (s === "scanning" || s === "select"));
     // Sin conexión no se muestra ningún dato: nada de lecturas viejas que parezcan actuales.
     if (s === "disconnected" || s === "error") resetDashboard();
+    if (s === "connected") setTimeout(maybeKeepOpen, 1500);
     document.body.classList.toggle("stale", s === "reconnecting" || (s === "connecting" && !!last.basic));
   }
 
@@ -1697,6 +1724,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (!$("renameCard").hidden) closeRename();
+    else if (!$("keepCard").hidden) closeKeep();
     else if (!$("newsCard").hidden) closeNews(); else if (!$("meterCard").hidden) closeMeter();
     else if (!$("appsCard").hidden) closeApps(); else if (!$("themeCard").hidden) closeTheme();
     else if (!$("settingsCard").hidden) closeSettings(); else if (!$("exportCard").hidden) closeExport();
@@ -1949,7 +1977,36 @@
     hideModal($("newsCard"));
     document.body.classList.remove("modalOpen");
     if (currentVersion) { try { localStorage.setItem("mm-seen-version", currentVersion); } catch (e) { /* sin almacenamiento */ } }
+    if (state === "connected") setTimeout(maybeKeepOpen, 600);
   }
+
+  // ---------------------------------------------------------------- consejo "Mantener abierta"
+  // Si se quita la app de recientes, Samsung (y otros) matan también el servicio: deja de grabar y de avisar.
+  // La primera vez que conecta (solo APK) se explica cómo anclarla. Se puede releer desde Acerca de.
+  function anyModalOpen() { return !!document.querySelector(".modal:not([hidden])"); }
+  function openKeep() {
+    togglePanel("aboutCard", "aboutBtn", false);
+    showModal($("keepCard"));
+    document.body.classList.add("modalOpen");
+    $("keepCard").querySelector(".card").scrollTop = 0;
+    try { $("kOk").focus({ preventScroll: true }); } catch (e) { $("kOk").focus(); }
+  }
+  function closeKeep() {
+    hideModal($("keepCard"));
+    document.body.classList.remove("modalOpen");
+    try { localStorage.setItem("mm-keep-tip", "1"); } catch (e) { /* sin almacenamiento */ }
+  }
+  function maybeKeepOpen() {
+    if (!hasBridge || state !== "connected" || anyModalOpen()) return; // con otra ventana abierta, en la próxima conexión
+    var seen = null;
+    try { seen = localStorage.getItem("mm-keep-tip"); } catch (e) { return; }
+    if (!seen) openKeep();
+  }
+  $("kOk").addEventListener("click", closeKeep);
+  $("kClose").addEventListener("click", closeKeep);
+  $("keepCard").addEventListener("click", function (e) { if (e.target === this) closeKeep(); });
+  $("aKeep").addEventListener("click", function (e) { e.preventDefault(); openKeep(); });
+  if (/[?&]panel=candado/.test(location.search)) setTimeout(openKeep, 0); // prueba en el navegador
   $("nOk").addEventListener("click", closeNews);
   $("nClose").addEventListener("click", closeNews);
   $("newsCard").addEventListener("click", function (e) { if (e.target === this) closeNews(); });
