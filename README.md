@@ -36,7 +36,7 @@ Historial, gráficas, alertas, avisos de apagón y exportación a Excel, todo gu
 - **Funciona sin internet.** Todo (lecturas, historial, gráficas, alertas) va en el dispositivo. Internet solo se usa, si lo hay, para buscar actualizaciones de la propia app.
 - **Solo lectura, por diseño.** La app solo envía al BMS 5 preguntas de consulta, escritas como constantes en el código. Nunca construye otras tramas, así que es imposible que cambie la configuración o las protecciones de tu batería.
 - **El historial que le falta a la app oficial.** La pestaña «Historical data» de BMS tools está vacía. Must Manager graba una lectura cada 10 segundos, también con la pantalla apagada, y te deja exportarlas a Excel.
-- **Ligera y sin dependencias.** Una interfaz HTML + JavaScript dentro de un WebView y un poco de Java para el Bluetooth. Sin Gradle, sin Kotlin y sin librerías externas: la APK pesa alrededor de 500 KB.
+- **Ligera.** Una interfaz HTML + JavaScript dentro de un WebView y un poco de Java para el Bluetooth. Sin Gradle, sin Kotlin y con todo incluido en la APK, sin descargar nada: pesa unos 500 KB.
 
 ## Capturas
 
@@ -328,6 +328,6 @@ Incluye [ECharts](https://echarts.apache.org) (Apache-2.0) y la fuente [Nunito](
 
 ## Autor
 
-Hecho por **Jhonny Valdes** ([@YoniValdes](https://github.com/YoniValdes)) · yonivaldes82@gmail.com
+Hecho por **Jhonny Valdes** ([@YoniValdes](https://github.com/YoniValdes))
 
 ¿Una idea, un fallo o una duda? Abre un [*issue*](https://github.com/YoniValdes/must_manager/issues).
