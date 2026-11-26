@@ -900,6 +900,7 @@
           (sameDay ? "las <b>" + fmtClock(new Date(grid.since)) + "</b>" : gridWhen(grid.since)) : "Se fue " + (/^las/.test(gridWhen(grid.since)) ? "a " : "") + gridWhen(grid.since);
       }
       $("gridBig").hidden = false;
+      requestAnimationFrame(updateSky); // que el sol o la luna no queden detrás del número rojo
       el.hidden = true;
       return;
     }
@@ -1241,6 +1242,7 @@
     // se recorte, y el arco se ajusta al ancho visible, para que nunca queden cortados por el borde.
     var v = skyView();
     var x = v.left + (v.right - v.left) * (0.47 + p * 0.48), y = 178 - lift * (140 - v.top), glowScale = 1 + (1 - lift) * 0.45;
+    x = avoidGridBlock(x, y, v, isDay ? 46 * glowScale + 4 : 40);
     $("clouds").setAttribute("transform", "translate(0 " + v.top.toFixed(1) + ")");
     $("stars").setAttribute("transform", "translate(0 " + v.top.toFixed(1) + ")");
     var tf = "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ") scale(" + glowScale.toFixed(2) + ")";
@@ -1253,6 +1255,29 @@
     $("stars").setAttribute("opacity", night.toFixed(2));
   }
   // Qué parte del lienzo de 1000 × 200 se ve en la tarjeta ("xMidYMax slice": cubre la tarjeta, apoyado abajo).
+  // Con el bloque rojo "Sin corriente" a la derecha, el sol y la luna (con su halo) no pueden pasar por
+  // detrás de sus números: si les toca, se quedan a su izquierda (Jhonny, 26-nov-2026: en vertical la luna
+  // se escondía tras el número rojo). Se mide el texto real (no la caja, que en móvil ocupa todo el ancho)
+  // y se pasa de píxeles a coordenadas del lienzo del cielo (x = left + px / escala).
+  function avoidGridBlock(x, y, v, halo) {
+    var gb = $("gridBig");
+    if (!gb || gb.hidden) return x;
+    var er = $("eta").getBoundingClientRect();
+    if (!er.width || !er.height) return x;
+    var sc = Math.max(er.width / 1000, er.height / 200), minL = Infinity, minT = Infinity, maxB = -Infinity;
+    gb.querySelectorAll(".label, .big, .line").forEach(function (c) {
+      var rg = document.createRange();
+      rg.selectNodeContents(c);
+      var r = rg.getBoundingClientRect();
+      if (r.width) { minL = Math.min(minL, r.left); minT = Math.min(minT, r.top); maxB = Math.max(maxB, r.bottom); }
+    });
+    if (minL === Infinity) return x;
+    var left = v.left + (minL - er.left) / sc - halo;
+    var top = v.top + (minT - er.top) / sc - halo, bottom = v.top + (maxB - er.top) / sc + halo;
+    if (y > top && y < bottom && x > left) return Math.max(v.left + halo, left);
+    return x;
+  }
+
   function skyView() {
     var el = $("eta"), w = el.clientWidth, h = el.clientHeight;
     if (!w || !h) return { top: 0, left: 0, right: 1000 };
