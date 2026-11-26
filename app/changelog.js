@@ -12,6 +12,7 @@ window.CHANGELOG = [
   {
     version: "0.22",
     items: [
+      ["new", "Icono nuevo: una M blanca sobre rojo, también en el título de la app."],
       ["imp", "Botones más claros: «Escanear» busca los BMS cercanos y cada uno de la lista tiene su propio botón «Conectar»."],
       ["fix", "Al girar la tablet de horizontal a vertical, la app ya no se queda estrecha y pegada a un lado."]
     ]

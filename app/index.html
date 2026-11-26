@@ -41,6 +41,10 @@
   @media (max-width: 480px) { body { padding: 12px; } }
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   header h1 { font-size: 28px; font-weight: 800; margin: 0; flex: 1; letter-spacing: .3px; }
+  /* La M del título es el icono de la app (diseño propio, no el logo de MUST Power). */
+  header h1 .logoM { width: 1.18em; height: 1.18em; vertical-align: -0.2em; margin-right: 3px; border-radius: 22%;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+  body.neon header h1 .logoM { filter: drop-shadow(0 0 8px rgba(220,38,38,.55)); }
   header h1 small { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 8px; letter-spacing: 0; }
   /* Móvil: el título en su línea y los botones debajo, a la derecha (en la APK son 4 iconos + Conectar) */
   @media (max-width: 480px) { header { flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
@@ -444,7 +448,9 @@
 </head>
 <body>
 <header>
-  <h1>Must Manager <small id="ver"></small></h1>
+  <h1 aria-label="Must Manager"><svg class="logoM" id="logoM" viewBox="6 6 96 96" aria-hidden="true">
+    <rect x="6" y="6" width="96" height="96" rx="24" fill="#dc2626"/>
+    <path d="M24 80V28h13l17 24 17-24h13v52H72V48l-9 12h-5l6-10h-9l-9 14-10-14v30z" fill="#fff"/></svg>ust Manager <small id="ver"></small></h1>
   <button class="icon" id="appsBtn" title="Mis aparatos" aria-label="Mis aparatos: medir lo que gasta cada aparato" aria-expanded="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M9 2v5"/><path d="M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg>
@@ -826,7 +832,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
-<script src="changelog.js?v=10"></script>
+<script src="changelog.js?v=11"></script>
 <script>
 (function () {
   "use strict";

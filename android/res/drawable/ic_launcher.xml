@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Icono provisional: batería sobre fondo verde. Se cambiará en el paso 6 (pulido). -->
+<!-- Icono de Must Manager (26-nov-2026): M blanca propia sobre rojo, con el trazo central cortado en
+     diagonal. Diseño original de la app (no es el logo de MUST Power). Mismo dibujo que la M del título
+     en app/index.html (#logoM): si se cambia uno, cambiar el otro. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#15803D"
-        android:pathData="M22,6h64a16,16 0 0 1 16,16v64a16,16 0 0 1 -16,16h-64a16,16 0 0 1 -16,-16v-64a16,16 0 0 1 16,-16z"/>
-    <path android:fillColor="#FFFFFF" android:pathData="M47,22h14v7h-14z"/>
-    <path android:fillColor="#FFFFFF" android:pathData="M36,29h36v58h-36z"/>
-    <path android:fillColor="#15803D" android:pathData="M41,34h26v48h-26z"/>
-    <path android:fillColor="#FFFFFF" android:pathData="M41,56h26v26h-26z"/>
+    <path android:fillColor="#DC2626"
+        android:pathData="M30,6h48a24,24 0 0 1 24,24v48a24,24 0 0 1 -24,24h-48a24,24 0 0 1 -24,-24v-48a24,24 0 0 1 24,-24z"/>
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M24,80V28h13l17,24 17,-24h13v52H72V48l-9,12h-5l6,-10h-9l-9,14 -10,-14v30z"/>
 </vector>
