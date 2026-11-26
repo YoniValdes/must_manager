@@ -750,7 +750,7 @@
   <h2><span id="nightTitle">Esta noche</span> <span class="badge" id="nightRange"></span></h2>
   <!-- Medidores semicirculares: cada uno con una escala que tiene sentido (ver renderNight) -->
   <div class="night">
-    <div class="tile gcell"><label>Energía gastada</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
+    <div class="tile gcell"><label id="gSocLabel">SOC al amanecer</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
     <div class="tile gcell"><label>Consumo medio</label><div class="gauge" id="gAvg"></div><div class="sub" id="nCover">&nbsp;</div></div>
     <div class="tile gcell"><label>Pico de consumo</label><div class="gauge" id="gPeak"></div><div class="sub" id="nPeakAt">&nbsp;</div></div>
     <div class="tile gcell"><label>Hoy entró (sol + red)</label><div class="gauge" id="gIn"></div><div class="sub" id="tOut">&nbsp;</div></div>
@@ -1648,6 +1648,9 @@
     renderChart(rows, now);
   }
 
+  // Zonas del SOC al amanecer: rojo por debajo del corte del inversor, ámbar hasta 10 puntos más, verde el resto.
+  function socZones() { return [[CUTOFF_SOC / 100, "bad"], [(CUTOFF_SOC + 10) / 100, "warn"], [1, "good"]]; }
+
   function renderNight(rows, now) {
     var sunsetToday = at(0, SUNSET), sunriseToday = at(0, SUNRISE), start, end, title;
     if (now >= sunsetToday) { start = sunsetToday; end = now; title = "Esta noche"; }
@@ -1655,16 +1658,18 @@
     else { start = at(-1, SUNSET); end = sunriseToday; title = "Anoche"; }
     var night = rows.filter(function (r) { return r[0] >= start && r[0] < end; });
     $("nightTitle").textContent = title;
-    $("nightRange").textContent = fmtClock(new Date(start)) + " – " + (end === now ? "ahora" : fmtClock(new Date(end)));
+    // Qué es esa hora: el anochecer (y, si ya pasó la noche, el amanecer).
+    $("nightRange").textContent = end === now ? "desde el anochecer · " + fmtClock(new Date(start))
+      : fmtClock(new Date(start)) + " → " + fmtClock(new Date(end)) + " (anochecer → amanecer)";
 
     var nightEnd = now < sunriseToday ? sunriseToday : at(1, SUNRISE); // amanecer que cierra esta noche
     if (title === "Anoche") nightEnd = sunriseToday;
     var nightHours = Math.max(1, (nightEnd - start) / HOUR);
 
     if (!night.length) {
-      gauge("gKwh", null, 1, "kWh", 2, null);
-      gauge("gAvg", null, 1, "W", 0, null);
-      gauge("gPeak", null, 1, "W", 0, null);
+      gauge("gKwh", null, 100, "%", 0, null, socZones());
+      gauge("gAvg", null, 1, "W", 0, null, [[0.45, "good"], [0.55, "warn"], [1, "bad"]]);
+      gauge("gPeak", null, 1, "W", 0, null, [[0.5, "good"], [0.8, "warn"], [1, "bad"]]);
       $("nSoc").innerHTML = $("nCover").innerHTML = $("nPeakAt").innerHTML = "&nbsp;";
       $("histHint").textContent = "Todavía no hay lecturas grabadas de " + title.toLowerCase() +
         ". La app graba una cada 10 s mientras está conectada, también con la pantalla apagada.";
@@ -1674,23 +1679,37 @@
       var peak = night.reduce(function (p, r) { return r[6] < p.w ? { w: r[6], t: r[0] } : p; }, { w: 0, t: 0 });
       // Energía disponible al anochecer hasta el corte (capacidad de diseño × voltaje nominal).
       var soc0 = night[0][1], availKwh = Math.max(0.1, (soc0 - CUTOFF_SOC) / 100 * BATTERY_KWH);
-      var usedKwh = disWh / 1000;
-      // ¿Vas al ritmo? Proporción gastada frente a proporción de noche transcurrida.
-      var elapsed = Math.max(0.02, Math.min(1, (Math.min(end, nightEnd) - start) / (nightEnd - start)));
-      var usedFrac = usedKwh / availKwh;
-      var paceSt = usedFrac <= elapsed ? "good" : usedFrac <= elapsed * 1.15 ? "warn" : "bad";
-      gauge("gKwh", usedKwh, availKwh, "kWh", 2, paceSt);
-      $("nSoc").textContent = "de " + fmt(availKwh, 1) + " kWh · " + (paceSt === "good" ? "vas bien de ritmo" :
-        paceSt === "warn" ? "vas justo" : "vas por delante de la noche");
+      var avgW = disMinutes ? disWh / (disMinutes / 60) : 0;
 
-      // Consumo medio frente al límite para llegar al amanecer desde el anochecer.
-      var avgW = disMinutes ? disWh / (disMinutes / 60) : 0, limitW = availKwh * 1000 / nightHours;
-      gauge("gAvg", disMinutes ? avgW : null, limitW * 2, "W", 0, avgW <= limitW ? "good" : avgW <= limitW * 1.1 ? "warn" : "bad");
+      // 1) SOC al amanecer. Esta noche: proyección "si sigues a tu media de la noche". Anoche: el real.
+      // El rojo solo si de verdad no se llega (por debajo del corte), no por gastar mucho a primera hora.
+      var socNow = night[night.length - 1][1], socDawn, dawnTxt;
+      if (title === "Anoche") {
+        socDawn = socNow;
+        dawnTxt = "real, de " + fmt(soc0, 0) + " % al anochecer";
+      } else {
+        var hoursLeft = Math.max(0, (nightEnd - now) / HOUR);
+        socDawn = socNow - (avgW * hoursLeft) / (BATTERY_KWH * 1000) * 100;
+        var dawnKwh = (socDawn - CUTOFF_SOC) / 100 * BATTERY_KWH;
+        dawnTxt = !disMinutes ? "aún sin consumo esta noche" : socDawn >= CUTOFF_SOC
+          ? "a " + fmt(avgW, 0) + " W de media · te sobran ≈ " + fmt(dawnKwh, 1) + " kWh"
+          : "a " + fmt(avgW, 0) + " W no llegas: corte a las " + fmtClock(new Date(now + Math.max(0, socNow - CUTOFF_SOC) / 100 * BATTERY_KWH * 1000 / avgW * HOUR));
+      }
+      $("gSocLabel").textContent = title === "Anoche" ? "SOC al amanecer" : "SOC al amanecer (previsto)";
+      gauge("gKwh", Math.max(0, socDawn), 100, "%", 0, socDawn < CUTOFF_SOC ? "bad" : socDawn < CUTOFF_SOC + 10 ? "warn" : "good", socZones());
+      $("nSoc").textContent = dawnTxt;
+
+      // 2) Consumo medio frente al límite para llegar al amanecer desde el anochecer (el límite queda a la mitad).
+      var limitW = availKwh * 1000 / nightHours;
+      gauge("gAvg", disMinutes ? avgW : null, limitW * 2, "W", 0, avgW <= limitW * 0.9 ? "good" : avgW <= limitW * 1.1 ? "warn" : "bad",
+        [[0.45, "good"], [0.55, "warn"], [1, "bad"]]);
       $("nCover").textContent = "límite para llegar: " + fmt(limitW, 0) + " W";
 
+      // 3) Pico frente a la potencia del inversor.
       var pk = peak.w < 0 ? -peak.w : 0;
-      gauge("gPeak", pk || null, INVERTER_W, "W", 0, pk < INVERTER_W * 0.5 ? "good" : pk < INVERTER_W * 0.8 ? "warn" : "bad");
-      $("nPeakAt").textContent = pk ? "a las " + fmtClock(new Date(peak.t)) + " · máx. inversor " + INVERTER_W + " W" : " ";
+      gauge("gPeak", pk || null, INVERTER_W, "W", 0, pk < INVERTER_W * 0.5 ? "good" : pk < INVERTER_W * 0.8 ? "warn" : "bad",
+        [[0.5, "good"], [0.8, "warn"], [1, "bad"]]);
+      $("nPeakAt").textContent = pk ? "a las " + fmtClock(new Date(peak.t)) + " · máx. inversor " + INVERTER_W + " W" : "\u00a0";
       $("histHint").textContent = "";
     }
 
@@ -1729,9 +1748,11 @@
     return { cx: w / 2, cy: (h + r - stroke / 2) / 2 + 2, r: r, stroke: stroke,
       font: Math.round(Math.max(15, Math.min(26, r * 0.36))), unit: Math.round(Math.max(10, Math.min(13, r * 0.19))) };
   }
-  function gauge(id, value, max, unit, decimals, st) {
+  // zones (opcional): [[fracción, estado], …] → medidor con AGUJA sobre un arco por zonas (verde/ámbar/rojo).
+  // Sin zones: arco que se rellena (para medidas sin límite de peligro, como "Hoy entró").
+  function gauge(id, value, max, unit, decimals, st, zones) {
     if (!window.echarts) return;
-    gaugeArgs[id] = [id, value, max, unit, decimals, st];
+    gaugeArgs[id] = [id, value, max, unit, decimals, st, zones];
     var el = $(id);
     if (!gauges[id]) {
       gauges[id] = echarts.init(el);
@@ -1743,7 +1764,34 @@
     if (geo.r <= 20 && el.clientWidth < 40) return; // aún sin tamaño (oculto): se dibujará al aparecer
     var css = getComputedStyle(document.documentElement);
     var color = st ? GAUGE_COLORS[st] : css.getPropertyValue("--muted").trim();
-    var shown = value == null ? 0 : Math.min(value, max); // el arco no pasa del máximo; el número sí
+    var shown = value == null ? 0 : Math.max(0, Math.min(value, max)); // el arco no pasa del máximo; el número sí
+    if (zones) {
+      var text = css.getPropertyValue("--text").trim(), muted = css.getPropertyValue("--muted").trim();
+      var zw = Math.max(6, Math.round(geo.stroke * 0.8));
+      g.setOption({
+        animation: false,
+        series: [{
+          type: "gauge", startAngle: 180, endAngle: 0, min: 0, max: max, radius: geo.r, center: [geo.cx, geo.cy],
+          axisLine: { lineStyle: { width: zw, color: zones.map(function (z) { return [z[0], GAUGE_COLORS[z[1]]]; }) } },
+          // Aguja: del centro hacia el valor. Sin valor, no se dibuja.
+          pointer: { show: value != null, length: "78%", width: Math.max(3, Math.round(geo.r * 0.07)), offsetCenter: [0, 0],
+            itemStyle: Object.assign({ color: text }, theme.neon ? { shadowBlur: 8, shadowColor: st ? GAUGE_COLORS[st] : text } : {}) },
+          anchor: { show: value != null, size: Math.max(8, Math.round(geo.r * 0.16)), showAbove: true,
+            itemStyle: { color: css.getPropertyValue("--card").trim(), borderColor: text, borderWidth: 2 } },
+          progress: { show: false }, axisTick: { show: false }, splitLine: { show: false }, title: { show: false },
+          // Solo el mínimo y el máximo en los extremos del arco.
+          axisLabel: { show: geo.r > 34, distance: -zw - 2, fontSize: Math.max(9, geo.unit - 2), color: muted,
+            formatter: function (v) { return v === 0 || Math.abs(v - max) < max * 1e-6 ? fmt(v, 0) : ""; } },
+          splitNumber: 1,
+          detail: { offsetCenter: [0, Math.round(geo.r * 0.02) + 4], valueAnimation: false, fontSize: Math.round(geo.font * 0.82), fontWeight: 800,
+            color: st ? GAUGE_COLORS[st] : text, fontFamily: "Nunito, system-ui, sans-serif",
+            formatter: function () { return value == null ? "--" : fmt(value, decimals) + "{u| " + unit + "}"; },
+            rich: { u: { fontSize: geo.unit, fontWeight: 600, color: muted } } },
+          data: [{ value: shown }]
+        }]
+      }, true);
+      return;
+    }
     g.setOption({
       animation: false,
       series: [{
