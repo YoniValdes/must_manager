@@ -10,6 +10,14 @@
  */
 window.CHANGELOG = [
   {
+    version: "0.23",
+    items: [
+      ["new", "Ayuda en cada tarjeta: toca el «?» de su esquina y un globo te explica qué mide y cómo leerla."],
+      ["imp", "Al cargar, la app dice de dónde viene la energía: del sol, de la red o de los dos (con un icono de torre eléctrica para la red)."],
+      ["fix", "Las nubes del cielo ya no tapan el aviso rojo de «Sin corriente»."]
+    ]
+  },
+  {
     version: "0.22",
     items: [
       ["new", "Icono nuevo: una M blanca sobre rojo, también en el título de la app."],
