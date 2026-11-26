@@ -94,7 +94,7 @@ La estructura coincide con la trama de estado/alarmas de **PACE**. Decodificaci�
 | 0 | `02` (¿id o tipo?) | desconocido |
 | 1 | Protección 1: b0 sobretensión celda, b1 subtensión celda, b2 sobretensión pack, b3 subtensión pack, b4 sobrecorriente carga, b5 sobrecorriente descarga, b6 cortocircuito | por confirmar |
 | 2 | Protección 2: b0–b3 temperatura alta/baja en carga/descarga, b4 MOS alta, b5 ambiente alta, b6 ambiente baja, **b7 Fully** | **b7 confirmado** |
-| 3 | Indicación: b0 limitación de corriente, **b1 CFET**, **b2 DFET**, **b3 alimentación del pack**, b4 polaridad invertida, b5 ACin, b7 calefactor | **b1–b3 confirmados** |
+| 3 | Indicación: b0 limitación de corriente, **b1 CFET**, **b2 DFET**, **b3 sale corriente (descargando)**, b4 polaridad invertida, **b5 entra corriente (cargando)**, b7 calefactor | **b1–b3 y b5 confirmados** (26-nov-2026, con `status_log`: `06` reposo, `0E` descargando, `26` cargando, sol o red indistintamente; b5 NO es "ACin"/red) |
 | 4 | Control (configuración: zumbador, LED, limitación…): `06` | sin mapear |
 | 5 | Fallos: b0 MOSFET carga, b1 MOSFET descarga, b2 sensor temperatura, b3 celda, b4 medición | por confirmar |
 | 6–7 | Balanceo: un bit por celda (byte 7 = celdas 1–8, byte 6 = 9–16) | por confirmar |

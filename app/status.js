@@ -3,7 +3,10 @@
  * La estructura coincide con la trama de alarmas/estado del protocolo PACE.
  * CONFIRMADO con capturas reales (ver docs/protocolo_bms.md):
  *   byte 2 bit 7 = protección "Fully" (batería llena)
- *   byte 3 bit 1 = CFET (carga permitida), bit 2 = DFET (descarga permitida), bit 3 = alimentación del pack
+ *   byte 3 bit 1 = CFET (carga permitida), bit 2 = DFET (descarga permitida)
+ *   byte 3 bit 3 = está saliendo corriente (descargando) y bit 5 = está entrando corriente (cargando), venga del
+ *   sol o de la red: comprobado con status_log el 26-nov-2026 (en un apagón con sol y nubes cambia con cada
+ *   paso de cargar a descargar). Antes se mostraba el bit 5 como "Entrada de red (ACin)", y NO lo es.
  * El resto sigue la tabla PACE y se marca como "por confirmar" hasta verlo en BMS tools.
  * Cualquier bit activo que no esté en las tablas se devuelve en `unknown` para no perder nada.
  */
@@ -19,7 +22,8 @@
   var FAULTS = [["Fallo del MOSFET de carga"], ["Fallo del MOSFET de descarga"], ["Fallo de un sensor de temperatura"],
     ["Fallo de celda"], ["Fallo de medición"], null, null, null];
   // Indicación: bits conocidos; los que no son "estado normal" se listan aparte.
-  var INDICATION = { 0: "Limitando la corriente de carga", 4: "Polaridad invertida", 5: "Entrada de red (ACin)", 7: "Calefactor encendido" };
+  // El bit 5 (cargando) no es un aviso: va en `charging` y no se lista.
+  var INDICATION = { 0: "Limitando la corriente de carga", 4: "Polaridad invertida", 7: "Calefactor encendido" };
 
   function bytes(hex) {
     return String(hex || "").trim().split(/\s+/).filter(Boolean).map(function (x) { return parseInt(x, 16); });
@@ -41,7 +45,8 @@
       raw: hex,
       chargeAllowed: !!(b[3] & 0x02),
       dischargeAllowed: !!(b[3] & 0x04),
-      packPower: !!(b[3] & 0x08),
+      packPower: !!(b[3] & 0x08), // saliendo corriente (descargando)
+      charging: !!(b[3] & 0x20),  // entrando corriente (cargando: sol o red)
       full: !!(b[2] & 0x80),
       protections: [], indications: [], faults: [], alarms: [], balancing: [], unknown: [],
       control: b[4]
