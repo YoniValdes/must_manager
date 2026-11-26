@@ -10,6 +10,13 @@
  */
 window.CHANGELOG = [
   {
+    version: "0.22",
+    items: [
+      ["imp", "Botones más claros: «Escanear» busca los BMS cercanos y cada uno de la lista tiene su propio botón «Conectar»."],
+      ["fix", "Al girar la tablet de horizontal a vertical, la app ya no se queda estrecha y pegada a un lado."]
+    ]
+  },
+  {
     version: "0.21",
     items: [
       ["new", "Actualizaciones con un botón: la app te avisa cuando hay una versión nueva y se actualiza sola, sin perder tus datos (en Acerca de puedes buscarla o desactivar el aviso)."],

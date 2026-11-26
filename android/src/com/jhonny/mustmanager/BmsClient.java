@@ -119,7 +119,7 @@ public class BmsClient {
         foundNames.clear();
         discoverMode = true;
         if (startScan()) {
-            listener.onState("scanning", "Buscando dispositivos… Toca tu BMS en la lista.");
+            listener.onState("scanning", "Buscando dispositivos… Pulsa «Conectar» junto a tu BMS.");
             h.postDelayed(scanTimeout, DISCOVER_TIMEOUT_MS);
         }
     }
@@ -157,7 +157,7 @@ public class BmsClient {
             return false;
         }
         if (!adapter.isEnabled()) {
-            listener.onState("error", "El Bluetooth está apagado. Enciéndelo y vuelve a pulsar Conectar.");
+            listener.onState("error", "El Bluetooth está apagado. Enciéndelo y vuelve a pulsar Escanear.");
             return false;
         }
         return true;
@@ -196,7 +196,7 @@ public class BmsClient {
                     listener.onState("error", "No encuentro ningún BMS. Acércate a la batería y comprueba que BMS tools "
                         + "está cerrada (el BMS solo admite una conexión a la vez)." + extra);
                 } else {
-                    listener.onState("select", "Búsqueda terminada. Toca tu BMS en la lista.");
+                    listener.onState("select", "Búsqueda terminada. Pulsa «Conectar» junto a tu BMS.");
                 }
             } else {
                 retryOrFail("No encuentro " + targetName + ".");
@@ -229,7 +229,7 @@ public class BmsClient {
                 public void run() {
                     scanning = false;
                     if (errorCode == ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY) {
-                        fail("Android limita las búsquedas seguidas. Espera 30 segundos y vuelve a pulsar Conectar.");
+                        fail("Android limita las búsquedas seguidas. Espera 30 segundos y vuelve a pulsar Escanear.");
                     } else {
                         fail("Error al buscar dispositivos Bluetooth (código " + errorCode + "). Apaga y enciende el Bluetooth.");
                     }

@@ -72,7 +72,6 @@
   .picker h2 { margin-bottom: 8px; }
   .dev { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--tile);
     color: var(--text); border-radius: 10px; padding: 12px 14px; margin-top: 8px; font-weight: 400; border: 1px solid var(--line); }
-  .dev:active { border-color: var(--acc); }
   .dev .name { font-weight: 700; font-size: 16px; }
   .dev .addr { color: var(--muted); font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
   .dev .tag { font-size: 11px; background: var(--acc); color: var(--on-acc); border-radius: 999px; padding: 2px 8px; margin-left: 6px; font-weight: 700; }
@@ -84,6 +83,10 @@
   .devRow { display: flex; align-items: stretch; gap: 8px; margin-top: 8px; }
   .devRow .dev { margin-top: 0; flex: 1; min-width: 0; }
   .devRow .devEdit { width: 48px; height: auto; border-radius: 10px; background: var(--tile); border: 1px solid var(--line); font-size: 18px; }
+  /* Cada BMS encontrado lleva su botón «Conectar» a la derecha (petición de Jhonny, 26-nov-2026). */
+  .devRow .devGo { flex: none; padding: 0 16px; border-radius: 10px; font-weight: 700; }
+  .dev .tag { display: inline-block; white-space: nowrap; }
+  @media (max-width: 520px) { .devRow .devGo { padding: 0 12px; } .devRow .devEdit { width: 42px; } .dev { padding: 10px 12px; gap: 8px; } }
   .modal .rename { max-width: 380px; }
   /* ---- Tarjeta de autonomía: cielo según la hora + número en neón (color = situación) ---- */
   .eta { position: relative; overflow: hidden; border-radius: var(--radius); margin-bottom: 14px; min-height: 196px;
@@ -464,7 +467,7 @@
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></svg>
   </button>
-  <button id="btn">Conectar</button>
+  <button id="btn">Escanear</button>
 </header>
 
 <div class="modal" id="aboutCard" hidden>
@@ -680,7 +683,7 @@
 </div>
 
 <div class="status" id="status" data-state="disconnected">
-  <span class="dot"></span><span id="msg">Pulsa Conectar. Recuerda cerrar BMS tools antes.</span>
+  <span class="dot"></span><span id="msg">Pulsa Escanear para buscar tu BMS. Recuerda cerrar BMS tools antes.</span>
   <button class="icon msgEdit" id="msgEdit" hidden aria-label="Cambiar el nombre del BMS" title="Cambiar el nombre del BMS">✏️</button>
   <span class="time" id="time"></span>
 </div>
@@ -823,7 +826,7 @@
 <script src="vendor/echarts.min.js"></script>
 <script src="webble.js?v=3"></script>
 <script src="status.js?v=2"></script>
-<script src="changelog.js?v=9"></script>
+<script src="changelog.js?v=10"></script>
 <script>
 (function () {
   "use strict";
@@ -1287,7 +1290,8 @@
     if (lastMsg) $("msg").textContent = withAliases(lastMsg);
     // ✏️ junto a "Conectado a …": el nombre también se puede cambiar con la app ya conectada.
     $("msgEdit").hidden = !(currentBms && currentBms.address && isBusy(s) && s !== "scanning");
-    $("btn").textContent = s === "scanning" ? "Cancelar" : isBusy(s) ? "Desconectar" : "Conectar";
+    // «Escanear» busca los BMS cercanos; cada uno se conecta con su propio botón «Conectar» de la lista.
+    $("btn").textContent = s === "scanning" ? "Cancelar" : isBusy(s) ? "Desconectar" : "Escanear";
     $("btn").className = isBusy(s) ? "secondary" : "";
     // En la web la lista la pone Chrome; la nuestra es solo para la APK.
     $("picker").hidden = !(hasBridge && (s === "scanning" || s === "select"));
@@ -1383,7 +1387,7 @@
     $("eta").dataset.level = "";
     $("etaLabel").textContent = "Autonomía";
     $("etaBig").textContent = "--";
-    $("etaLine").textContent = "Sin conexión · pulsa Conectar";
+    $("etaLine").textContent = "Sin conexión · pulsa Escanear";
     $("etaNote").hidden = true;
     $("etaSun").hidden = true;
     $("etaVerdict").hidden = true;
@@ -1456,17 +1460,18 @@
       var bars = signalBars(d.rssi), sig = "";
       for (var i = 1; i <= 4; i++) sig += "<i class='" + (i <= bars ? "on" : "") + "' style='height:" + (i * 4) + "px'></i>";
       var renamed = bmsNames[d.address] && bmsNames[d.address].alias;
-      return "<div class='devRow'><button class='dev' data-addr='" + esc(d.address) + "'><div><div class='name'>" + esc(bmsLabel(d)) +
+      return "<div class='devRow'><div class='dev' data-addr='" + esc(d.address) + "'><div><div class='name'>" + esc(bmsLabel(d)) +
         (d.last ? "<span class='tag'>último usado</span>" : "") + "</div><div class='addr'>" +
         (renamed ? esc(d.name || "") + " · " : "") + esc(d.address) +
-        " · " + d.rssi + " dBm</div></div><span class='sig'>" + sig + "</span></button>" +
-        "<button class='icon devEdit' data-addr='" + esc(d.address) + "' aria-label='Cambiar el nombre' title='Cambiar el nombre'>✏️</button></div>";
+        " · " + d.rssi + " dBm</div></div><span class='sig'>" + sig + "</span></div>" +
+        "<button class='icon devEdit' data-addr='" + esc(d.address) + "' aria-label='Cambiar el nombre' title='Cambiar el nombre'>✏️</button>" +
+        "<button class='devGo' data-addr='" + esc(d.address) + "'>Conectar</button></div>";
     }).join("") : "<div class='none'>Buscando…</div>";
   }
   $("devices").addEventListener("click", function (e) {
     var ed = e.target.closest(".devEdit");
     if (ed) { openRename(ed.dataset.addr); return; }
-    var b = e.target.closest(".dev");
+    var b = e.target.closest(".devGo");
     if (b && hasBridge) { setCurrentBms(found[b.dataset.addr] || { address: b.dataset.addr }); window.Android.connectTo(b.dataset.addr); }
   });
 
@@ -2076,10 +2081,10 @@
     $("ver").textContent = "v" + window.Android.version();
   } else if (webBle) {
     $("ver").textContent = "web";
-    setState("disconnected", "Versión web (Web Bluetooth). Cierra BMS tools y pulsa Conectar.");
+    setState("disconnected", "Versión web (Web Bluetooth). Cierra BMS tools y pulsa Escanear.");
   } else {
     $("ver").textContent = "demo";
-    setState("disconnected", "Este navegador no tiene Bluetooth. Pulsa Conectar para ver datos de ejemplo.");
+    setState("disconnected", "Este navegador no tiene Bluetooth. Pulsa Escanear para ver datos de ejemplo.");
   }
 
   // ---------------------------------------------------------------- ajustes (solo APK; se guardan en Android)

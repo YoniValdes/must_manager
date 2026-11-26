@@ -95,7 +95,7 @@ public class MonitorService extends Service implements BmsClient.Listener {
         }
         goForeground("Iniciando…");
         // intent == null: Android reinició el servicio tras cerrarlo. Si estábamos monitorizando, reconectamos.
-        // Pero no tras actualizar la app: en ese caso se espera a que el usuario pulse Conectar.
+        // Pero no tras actualizar la app: en ese caso se espera a que el usuario pulse Escanear y Conectar.
         if (intent == null && prefs.getInt("monitoringVersion", -1) != versionCode()) {
             prefs.edit().putBoolean("monitoring", false).apply();
             stopForeground(true);
