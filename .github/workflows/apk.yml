@@ -10,9 +10,14 @@ name: Compilar APK
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publicar como Release (página pública de descarga). Solo desde main y con una versión nueva."
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write # solo para crear la Release (etiqueta vX.Y + APK); el resto solo lee
 
 jobs:
   apk:
@@ -71,3 +76,44 @@ jobs:
           path: dist/*.apk
           retention-days: 30
           if-no-files-found: error
+
+      # ---------------------------------------------------------------- Release (casilla marcada)
+      - name: Publicar la Release
+        if: ${{ inputs.release }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ("${{ github.ref_name }}" -ne "main") { throw "Las Releases solo se publican desde main (has elegido ${{ github.ref_name }})." }
+          $ver = [regex]::Match((Get-Content android\AndroidManifest.xml -Raw), 'versionName="([^"]+)"').Groups[1].Value
+          $tag = "v$ver"
+          gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "Ya existe la Release $tag. Sube versionCode y versionName en AndroidManifest.xml (y añade sus novedades a changelog.js)." }
+          # Novedades: la entrada de changelog.js con esta versión (las mismas que ve el usuario en la app).
+          $notes = node -e "
+            const vm = require('vm'), fs = require('fs'), ctx = { window: {} };
+            vm.runInNewContext(fs.readFileSync('app/changelog.js', 'utf8'), ctx);
+            const e = (ctx.window.CHANGELOG || []).find(x => x.version === process.argv[1]);
+            if (!e) { console.error('changelog.js no tiene la versión ' + process.argv[1]); process.exit(1); }
+            const tag = { new: 'Nuevo', fix: 'Corregido', imp: 'Mejorado' };
+            console.log('## Novedades\n');
+            e.items.forEach(i => console.log('- **' + (tag[i[0]] || i[0]) + ':** ' + i[1]));
+          " $ver
+          if ($LASTEXITCODE -ne 0) { throw "Sin novedades para la versión $ver en app/changelog.js." }
+          $apk = (Get-ChildItem dist\*.apk | Select-Object -First 1).FullName
+          $body = ($notes -join "`n") + @"
+
+
+          ## Cómo instalarla
+
+          1. Descarga **$(Split-Path $apk -Leaf)** (abajo, en *Assets*) desde la tablet o el móvil.
+          2. Ábrela e instálala. Si Android lo pide, permite instalar apps de esa fuente.
+          3. Si ya tenías Must Manager, se actualiza **sin perder el historial**. Después, pulsa **Conectar**.
+
+          Cierra **BMS tools** antes de conectar. App no oficial, sin relación con MUST Power.
+
+          <sub>Huella del certificado (SHA-256): ``3a2237683e7caf1293a0447ab3ec3fa4ac4d85bb4ba6ece8d726d9cdc7fb0dee``</sub>
+          "@
+          Set-Content release-notes.md $body -Encoding utf8
+          gh release create $tag $apk --target "${{ github.sha }}" --title "Must Manager $ver" --notes-file release-notes.md
+          "Publicada: https://github.com/${{ github.repository }}/releases/tag/$tag"
