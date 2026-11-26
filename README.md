@@ -75,3 +75,7 @@ Los Pull Requests son bienvenidos. Para cambios grandes, abre antes un *issue* y
 ## Autor
 
 Jhonny Valdes · yonivaldes82@gmail.com
+
+## Licencia
+
+© 2026 Jhonny Valdes · Licencia [GPL-3.0](LICENSE)
