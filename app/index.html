@@ -1048,7 +1048,9 @@
     } else if (avgA >= IDLE_A) {
       var toFull = Math.max(0, b.fullAh - b.remainingAh) / avgA;
       eta.dataset.level = "charge";
-      $("etaLabel").innerHTML = "Cargando <span>· sol o red</span>";
+      // Si sabemos que no hay corriente de la calle (apagón), lo que carga solo puede ser el sol.
+      var noGrid = grid && (grid.state === "out" || grid.state === "unknown");
+      $("etaLabel").innerHTML = "Cargando <span>· " + (noGrid ? "con el sol" : "sol o red") + "</span>";
       $("etaBig").innerHTML = toFull > 0 ? fmtDuration(toFull) : "Llena";
       $("etaLine").innerHTML = toFull > 0 ? "Llena hacia las <b>" + fmtClock(new Date(now + toFull * 3600000)) + "</b>" : "La batería está llena";
       note = spanMin < 1 ? note : "Entrando " + fmt(avgW, 0) + " W";
