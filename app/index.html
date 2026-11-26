@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
 <title>Must Manager</title>
 <style>
   :root {
@@ -160,6 +160,11 @@
   .chartHead .zoomReset { padding: 3px 10px; font-size: 12px; }
   /* Pellizcar y arrastrar sobre la gráfica la amplía o la mueve (no la página); el desplazamiento vertical sigue. */
   #chart { touch-action: pan-y; }
+  /* Al girar la tablet, si algo es un instante más ancho que la pantalla (gráficas o el cielo aún con el
+     ancho de antes), Chrome alejaba toda la página y se veía estrecha a la izquierda hasta volver a girar.
+     Nada puede ensanchar la página (se recorta) y el viewport no deja alejar por debajo de 1 (minimum-scale). */
+  html, body { overflow-x: hidden; }
+  .chart, .night .gauge, .eta { overflow: hidden; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   button.icon { background: var(--card); color: var(--text); padding: 0; width: 42px; height: 42px; display: grid; place-items: center; }
   button.icon[aria-expanded="true"] { background: var(--line); color: var(--acc); }
@@ -1835,6 +1840,8 @@
     if (!chart) {
       chart = echarts.init($("chart"));
       window.addEventListener("resize", function () { chart.resize(); });
+      // Al girar la pantalla, en cuanto cambia el tamaño de la tarjeta (antes que el aviso de giro del sistema).
+      if (window.ResizeObserver) new ResizeObserver(function () { chart.resize(); }).observe($("chart"));
       chart.on("datazoom", function () {
         var dz = chart.getOption().dataZoom[0];
         var a = dz.startValue, b = dz.endValue;
