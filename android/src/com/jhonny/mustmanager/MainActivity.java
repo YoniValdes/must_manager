@@ -176,6 +176,7 @@ public class MainActivity extends Activity implements BmsClient.Listener {
         public String setSettings(String json) {
             Settings s = Settings.fromJson(json);
             s.save(MainActivity.this);
+            s.applySun(System.currentTimeMillis()); // con un lugar elegido, devuelve ya las horas de hoy
             return s.toJson().toString();
         }
 
