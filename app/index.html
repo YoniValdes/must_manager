@@ -901,6 +901,23 @@
     });
   }
 
+  // Dirección actual (lo que hace la batería en el último minuto y medio) y lecturas desde que empezó:
+  // se descartan las de antes de la última lectura en sentido contrario (cargando ↔ descargando).
+  var DIR_MS = 90 * 1000;
+  function regimeSamples(now) {
+    var ra = 0, rw = 0;
+    for (var i = samples.length - 1; i >= 0 && now - samples[i].t <= DIR_MS; i--) { ra += samples[i].a * samples[i].w; rw += samples[i].w; }
+    var dirA = rw ? ra / rw : samples[samples.length - 1].a;
+    var dir = dirA <= -IDLE_A ? -1 : dirA >= IDLE_A ? 1 : 0;
+    if (!dir) return samples;
+    var start = 0;
+    for (var j = samples.length - 1; j >= 0; j--) {
+      var a = samples[j].a;
+      if ((dir < 0 && a >= IDLE_A) || (dir > 0 && a <= -IDLE_A)) { start = j + 1; break; }
+    }
+    return start < samples.length ? samples.slice(start) : samples.slice(-1);
+  }
+
   function renderEta(b) {
     var now = Date.now();
     if (!samples.length) seedSamples(b, now);
@@ -908,11 +925,15 @@
     var prev = samples.length ? samples[samples.length - 1].t : now - 4000;
     samples.push({ t: now, a: b.currentA, w: Math.max(1, Math.min(30, (now - prev) / 1000)) });
     while (samples.length && now - samples[0].t > WINDOW_MS) samples.shift();
+    // Solo el TRAMO ACTUAL: si ahora descarga, la media empieza donde dejó de cargar (y al revés).
+    // Si no, al irse la corriente los minutos de carga con la red (+30 A) se mezclaban con la descarga:
+    // la app seguía diciendo "Cargando" ~20 min, o daba una media de 15 W y 237 h (26-nov-2026).
+    var used = regimeSamples(now);
     // Media ponderada por tiempo: un minuto del historial pesa 60 s y cada lectura en vivo sus ~4 s.
     var sumW = 0, sumA = 0;
-    samples.forEach(function (x) { sumA += x.a * x.w; sumW += x.w; });
+    used.forEach(function (x) { sumA += x.a * x.w; sumW += x.w; });
     var avgA = sumA / sumW;
-    var spanMin = (now - samples[0].t) / 60000;
+    var spanMin = (now - used[0].t) / 60000;
     var avgW = Math.abs(avgA) * b.voltageV;
     var cutoffAh = b.fullAh * CUTOFF_SOC / 100;
     var usableAh = b.remainingAh - cutoffAh;
