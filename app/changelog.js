@@ -20,7 +20,7 @@ window.CHANGELOG = [
       ["new", "Compatible con baterías de 48 V, como el Must HBP3300 TLV. La app reconoce sola tu batería (celdas, capacidad y kWh) y avisa si hay varias en paralelo."],
       ["new", "Ponle nombre a tu BMS (Casa, Taller…) con el lápiz ✏️ (en la lista o junto a «Conectado a…»), y ajusta en la campana la potencia del inversor y de tus paneles."],
       ["imp", "Autonomía más realista y estable: usa el consumo medio de los últimos 30 minutos, y el amanecer y el atardecer de cada día según tu provincia (elígela en la campana)."],
-      ["imp", "Excel más cómodo (fecha y hora separadas, una columna por celda) y retoques visuales: gráfica de fondo en los indicadores, ventanas nuevas y más ordenadas, cielo renovado, mejor alto contraste y medidores de «Esta noche» que ya no se cortan. El botón Atrás cierra las ventanas, y un consejo para que la app no deje de grabar («Mantener abierta», también en Acerca de)."]
+      ["imp", "Excel más cómodo (fecha y hora separadas, una columna por celda) y retoques visuales: la carga restante ahora es un depósito de agua que sube y baja (azul y con burbujas mientras carga), números con letra redondeada, gráfica de fondo en los indicadores, ventanas nuevas y más ordenadas, cielo renovado, mejor alto contraste y medidores de «Esta noche» que ya no se cortan. El botón Atrás cierra las ventanas, y un consejo para que la app no deje de grabar («Mantener abierta», también en Acerca de)."]
     ]
   }
 ];
