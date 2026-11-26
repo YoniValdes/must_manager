@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <!-- Mismo dibujo que android/res/drawable/ic_launcher.xml: si se cambia uno, cambiar el otro -->
+  <path fill="#DC2626" d="M30,6h48a24,24 0 0 1 24,24v48a24,24 0 0 1 -24,24h-48a24,24 0 0 1 -24,-24v-48a24,24 0 0 1 24,-24z"/>
+  <path fill="#FFFFFF" d="M24,80V28h13l17,24 17,-24h13v52H72V48l-9,12h-5l6,-10h-9l-9,14 -10,-14v30z"/>
+</svg>
