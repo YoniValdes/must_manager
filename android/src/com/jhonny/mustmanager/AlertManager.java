@@ -26,6 +26,8 @@ final class AlertManager {
     private static final int ID_SOC = 100, ID_GRID = 101, ID_SUNRISE = 102, ID_CONN = 103, ID_ALARM = 104, ID_TEST = 199;
     /** Media para la previsión del amanecer: 30 min (abarca un ciclo completo de la nevera, como la pantalla). */
     private static final long SUNRISE_AVG_MS = 30 * 60000L;
+    private static final long DIR_MS = 90 * 1000L;   // ventana para saber si ahora carga o descarga
+    private static final double IDLE_A = 0.3;        // por debajo, reposo (igual que en la página)
     private static final long ALARM_TEST_MS = 15000L;
     private static final long MIN = 60000L, HOUR = 3600000L;
 
@@ -258,13 +260,30 @@ final class AlertManager {
     // ------------------------------------------------------------------ utilidades
 
     /** Media en los últimos spanMs: {corriente A, potencia W, ms cubiertos}, o null si no hay datos. */
+    /**
+     * Media del TRAMO ACTUAL dentro de los últimos spanMs: si ahora descarga, solo desde que dejó de
+     * cargar (y al revés). Mezclar la carga con la red (+30 A) con la descarga de después daba
+     * "cargando" durante ~20 min tras irse la corriente, o medias absurdas (15 W → 237 h), 26-nov-2026.
+     */
     private double[] average(long now, long spanMs) {
+        // Dirección actual: media del último minuto y medio.
+        double ra = 0;
+        int rn = 0;
+        Iterator<double[]> it0 = window.descendingIterator();
+        while (it0.hasNext()) {
+            double[] r = it0.next();
+            if (now - r[0] > DIR_MS) break;
+            ra += r[1];
+            rn++;
+        }
+        int dir = rn == 0 ? 0 : (ra / rn <= -IDLE_A ? -1 : (ra / rn >= IDLE_A ? 1 : 0));
         double a = 0, w = 0, first = now;
         int n = 0;
         Iterator<double[]> it = window.descendingIterator();
         while (it.hasNext()) {
             double[] r = it.next();
             if (now - r[0] > spanMs) break;
+            if ((dir < 0 && r[1] >= IDLE_A) || (dir > 0 && r[1] <= -IDLE_A)) break; // empieza el tramo anterior
             a += r[1];
             w += r[2];
             first = r[0];
