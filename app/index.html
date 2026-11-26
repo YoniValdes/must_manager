@@ -333,12 +333,12 @@
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px; }
   .soc { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
-  .soc h2 { position: absolute; top: 14px; left: 16px; margin: 0; }
-  .ring { position: relative; width: 196px; height: 196px; }
+  .soc h2 { margin: 0 0 8px; justify-content: center; } /* centrado arriba, como el título de los KPIs */
+  .ring { position: relative; width: 176px; height: 176px; }
   .ring svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; } /* que el brillo del neón no se corte en un cuadrado */
   .ring svg.arcs { transform: rotate(-90deg); }
   .ring .val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring .val b { font-size: 54px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .ring .val b { font-size: 50px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
   .ring .val b small { font-size: 22px; font-weight: 800; margin-left: 2px; opacity: .8; }
   .ring .val span { color: var(--text); font-size: 13px; margin-top: 4px; opacity: .85; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
   .ring .val b { text-shadow: 0 2px 6px rgba(0,0,0,.45); }
