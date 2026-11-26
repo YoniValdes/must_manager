@@ -510,6 +510,11 @@
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
   </button>
+  <button class="icon" id="shotBtn" title="Compartir una captura de la app" aria-label="Compartir una captura de la app">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+      <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+  </button>
   <button class="icon" id="bell" title="Alertas y ajustes" aria-label="Alertas y ajustes" aria-expanded="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
@@ -1858,7 +1863,8 @@
     gaugeArgs[id] = [id, value, max, unit, decimals, st];
     var el = $(id);
     if (!gauges[id]) {
-      gauges[id] = echarts.init(el);
+      // SVG en vez de canvas: así salen en la captura para compartir (el WebView no copia los canvas).
+      gauges[id] = echarts.init(el, null, { renderer: "svg" });
       // Si la tarjeta cambia de tamaño (girar la pantalla, cambiar de 4 a 2 columnas), se redibuja con
       // las medidas nuevas. ResizeObserver avisa cuando el diseño ya está asentado, no antes.
       if (window.ResizeObserver) new ResizeObserver(function () { regauge(id); }).observe(el);
@@ -1936,7 +1942,7 @@
   function renderChart(rows, now) {
     if (!window.echarts) return;
     if (!chart) {
-      chart = echarts.init($("chart"));
+      chart = echarts.init($("chart"), null, { renderer: "svg" }); // SVG: sale en la captura para compartir
       window.addEventListener("resize", function () { chart.resize(); });
       // Al girar la pantalla, en cuanto cambia el tamaño de la tarjeta (antes que el aviso de giro del sistema).
       if (window.ResizeObserver) new ResizeObserver(function () { chart.resize(); }).observe($("chart"));
@@ -2895,6 +2901,16 @@
     };
   } else {
     $("exportBtn").hidden = true;
+  }
+  // Compartir una captura de la app entera (solo APK: la hace Java, Screenshot.java, a buena resolución).
+  if (hasBridge && window.Android && Android.shareScreenshot) {
+    $("shotBtn").addEventListener("click", function () {
+      closeHelp();
+      this.blur();
+      setTimeout(function () { Android.shareScreenshot(); }, 250); // que se cierre antes el globo de ayuda
+    });
+  } else {
+    $("shotBtn").hidden = true;
   }
 
   // index.html?demo: carga directamente los datos de ejemplo (para revisar el diseño en el navegador).

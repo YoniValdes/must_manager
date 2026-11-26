@@ -58,6 +58,8 @@ public class MainActivity extends Activity implements BmsClient.Listener, Update
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         WebView.setWebContentsDebuggingEnabled(true);
+        // Para la captura de la app entera (Screenshot): sin esto el WebView solo dibuja lo visible.
+        WebView.enableSlowWholeDocumentDraw();
         web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -306,6 +308,17 @@ public class MainActivity extends Activity implements BmsClient.Listener, Update
                     });
                 }
             }, "exportar").start();
+        }
+
+        /** Botón de compartir de la cabecera: captura de la app entera y menú de compartir. */
+        @JavascriptInterface
+        public void shareScreenshot() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Screenshot.share(MainActivity.this, web);
+                }
+            });
         }
 
         /** Abre el menú de compartir de Android con el último archivo exportado. */
