@@ -1,0 +1,82 @@
+# Pruebas automáticas: GitHub las ejecuta en sus servidores en cada Pull Request y en cada push a
+# main o apagon. En el PR sale ✅ si todo pasa o ❌ con el paso que falló (pestaña "Checks").
+# No compila la APK ni usa la llave de firma: solo comprueba el código.
+name: Pruebas
+
+on:
+  pull_request:
+  push:
+    branches: [main, apagon]
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Página (sintaxis de los scripts e ids de index.html)
+        run: node tools/check-html.js
+
+      - name: Protocolo del BMS en JavaScript
+        run: node tools/test-webble.js
+
+      - name: Trama de estado del BMS
+        run: node tools/test-status.js
+
+      - name: Protocolo del BMS en Java (tramas reales)
+        run: |
+          mkdir -p build/test
+          javac -encoding UTF-8 -d build/test android/src/com/jhonny/mustmanager/BmsProtocol.java tools/ProtocolTest.java
+          java -cp build/test ProtocolTest
+
+      - name: Excel (.xlsx válido)
+        run: |
+          mkdir -p build/xlsx
+          javac -encoding UTF-8 -d build/xlsx android/src/com/jhonny/mustmanager/XlsxWriter.java tools/XlsxTest.java
+          java -cp build/xlsx XlsxTest build/xlsx/prueba.xlsx
+          # Un .xlsx es un zip con XML dentro: se comprueba que el zip y cada XML se leen bien.
+          python3 -c "
+          import sys, zipfile, xml.dom.minidom as m
+          z = zipfile.ZipFile('build/xlsx/prueba.xlsx')
+          assert z.testzip() is None, 'zip dañado'
+          for n in z.namelist():
+              if n.endswith('.xml') or n.endswith('.rels'):
+                  m.parseString(z.read(n))
+          print('xlsx correcto:', len(z.namelist()), 'archivos')
+          "
+
+      - name: Todo el Java de la app compila (Java 8, contra Android 34)
+        run: |
+          JAR="$ANDROID_HOME/platforms/android-34/android.jar"
+          if [ ! -f "$JAR" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" > /dev/null
+          fi
+          # R.java de mentira con los recursos que usa el código (la de verdad la genera aapt2 en build.ps1).
+          mkdir -p build/r/com/jhonny/mustmanager build/java
+          {
+            echo "package com.jhonny.mustmanager; public final class R {"
+            for kind in drawable layout id xml string; do
+              names=$(grep -ohE "R\.$kind\.[A-Za-z0-9_]+" android/src/com/jhonny/mustmanager/*.java | sed "s/R\.$kind\.//" | sort -u)
+              if [ -n "$names" ]; then
+                echo "public static final class $kind {"
+                for n in $names; do echo "public static final int $n = 0;"; done
+                echo "}"
+              fi
+            done
+            echo "}"
+          } > build/r/com/jhonny/mustmanager/R.java
+          javac --release 8 -encoding UTF-8 -Xlint:-options -nowarn -cp "$JAR" -d build/java \
+            android/src/com/jhonny/mustmanager/*.java build/r/com/jhonny/mustmanager/R.java
