@@ -150,8 +150,7 @@
   @media (max-width: 720px) { .night { grid-template-columns: repeat(2, 1fr); } }
   .night .gcell { text-align: center; padding: 10px 8px 10px; }
   .night .gauge { width: 100%; height: 118px; }
-  /* Minimalista (petición de Jhonny, 26-nov-2026): solo el título encima del arco; sin texto debajo. */
-  .night .gcell .sub { display: none; }
+  .night .gcell .sub { min-height: 32px; line-height: 1.35; }
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
@@ -751,7 +750,7 @@
   <h2><span id="nightTitle">Esta noche</span> <span class="badge" id="nightRange"></span></h2>
   <!-- Medidores semicirculares: cada uno con una escala que tiene sentido (ver renderNight) -->
   <div class="night">
-    <div class="tile gcell"><label id="gSocLabel">SOC al amanecer</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
+    <div class="tile gcell"><label>Energía gastada</label><div class="gauge" id="gKwh"></div><div class="sub" id="nSoc">&nbsp;</div></div>
     <div class="tile gcell"><label>Consumo medio</label><div class="gauge" id="gAvg"></div><div class="sub" id="nCover">&nbsp;</div></div>
     <div class="tile gcell"><label>Pico de consumo</label><div class="gauge" id="gPeak"></div><div class="sub" id="nPeakAt">&nbsp;</div></div>
     <div class="tile gcell"><label>Hoy entró (sol + red)</label><div class="gauge" id="gIn"></div><div class="sub" id="tOut">&nbsp;</div></div>
@@ -1665,7 +1664,7 @@
     var nightHours = Math.max(1, (nightEnd - start) / HOUR);
 
     if (!night.length) {
-      gauge("gKwh", null, 100, "%", 0, null);
+      gauge("gKwh", null, 1, "kWh", 2, null);
       gauge("gAvg", null, 1, "W", 0, null);
       gauge("gPeak", null, 1, "W", 0, null);
       $("nSoc").innerHTML = $("nCover").innerHTML = $("nPeakAt").innerHTML = "&nbsp;";
@@ -1677,22 +1676,21 @@
       var peak = night.reduce(function (p, r) { return r[6] < p.w ? { w: r[6], t: r[0] } : p; }, { w: 0, t: 0 });
       // Energía disponible al anochecer hasta el corte (capacidad de diseño × voltaje nominal).
       var soc0 = night[0][1], availKwh = Math.max(0.1, (soc0 - CUTOFF_SOC) / 100 * BATTERY_KWH);
-      var avgW0 = disMinutes ? disWh / (disMinutes / 60) : 0;
-      // SOC al amanecer. Esta noche: proyección "si sigues a tu media de la noche". Anoche: el real.
-      // El rojo solo si de verdad no se llega (por debajo del corte), no por gastar mucho a primera hora.
+      var usedKwh = disWh / 1000, avgW0 = disMinutes ? disWh / (disMinutes / 60) : 0;
+      // El COLOR sigue la previsión del SOC al amanecer (no el ritmo de gasto, que daba rojo casi todas las
+      // noches a primera hora): verde si llegas, ámbar si llegas justo (corte + 10), rojo solo si no llegas.
       var socNow = night[night.length - 1][1], socDawn, dawnTxt;
       if (title === "Anoche") {
         socDawn = socNow;
-        dawnTxt = "real, de " + fmt(soc0, 0) + " % al anochecer";
+        dawnTxt = "de " + fmt(availKwh, 1) + " kWh · amaneciste con " + fmt(socDawn, 0) + " %";
       } else {
         var hoursLeft = Math.max(0, (nightEnd - now) / HOUR);
         socDawn = socNow - (avgW0 * hoursLeft) / (BATTERY_KWH * 1000) * 100;
-        dawnTxt = !disMinutes ? "aún sin consumo esta noche" : socDawn >= CUTOFF_SOC
-          ? "a " + fmt(avgW0, 0) + " W de media · te sobran ≈ " + fmt((socDawn - CUTOFF_SOC) / 100 * BATTERY_KWH, 1) + " kWh"
-          : "a " + fmt(avgW0, 0) + " W no llegas: corte a las " + fmtClock(new Date(now + Math.max(0, socNow - CUTOFF_SOC) / 100 * BATTERY_KWH * 1000 / avgW0 * HOUR));
+        dawnTxt = "de " + fmt(availKwh, 1) + " kWh · " + (!disMinutes ? "aún sin consumo" : socDawn >= CUTOFF_SOC
+          ? "amaneces con ≈ " + fmt(socDawn, 0) + " %"
+          : "no llegas: corte a las " + fmtClock(new Date(now + Math.max(0, socNow - CUTOFF_SOC) / 100 * BATTERY_KWH * 1000 / avgW0 * HOUR)));
       }
-      $("gSocLabel").textContent = title === "Anoche" ? "SOC al amanecer" : "SOC al amanecer (previsto)";
-      gauge("gKwh", Math.max(0, socDawn), 100, "%", 0, socDawn < CUTOFF_SOC ? "bad" : socDawn < CUTOFF_SOC + 10 ? "warn" : "good");
+      gauge("gKwh", usedKwh, availKwh, "kWh", 2, socDawn < CUTOFF_SOC ? "bad" : socDawn < CUTOFF_SOC + 10 ? "warn" : "good");
       $("nSoc").textContent = dawnTxt;
 
       // Consumo medio frente al límite para llegar al amanecer desde el anochecer.
