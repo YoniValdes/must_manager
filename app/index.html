@@ -150,7 +150,8 @@
   @media (max-width: 720px) { .night { grid-template-columns: repeat(2, 1fr); } }
   .night .gcell { text-align: center; padding: 10px 8px 10px; }
   .night .gauge { width: 100%; height: 118px; }
-  .night .gcell .sub { min-height: 32px; line-height: 1.35; }
+  /* Minimalista (petición de Jhonny, 26-nov-2026): solo el título encima del arco; sin texto debajo. */
+  .night .gcell .sub { display: none; }
   .chart { width: 100%; height: 380px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -2px 0 4px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
@@ -1765,6 +1766,7 @@
         pointer: { show: false }, axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
         anchor: { show: false }, title: { show: false },
         detail: { offsetCenter: [0, -Math.round(geo.r * 0.26)], fontSize: geo.font, fontWeight: 800, color: css.getPropertyValue("--text").trim(),
+          fontFamily: "Nunito, system-ui, sans-serif",
           formatter: function () { return value == null ? "--" : fmt(value, decimals) + "{u| " + unit + "}"; },
           rich: { u: { fontSize: geo.unit, fontWeight: 600, color: css.getPropertyValue("--muted").trim() } } },
         data: [{ value: shown }]
